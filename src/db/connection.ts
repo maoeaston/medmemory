@@ -121,7 +121,14 @@ let initPromise: Promise<PromiserFn> | null = null;
 
 /**
  * 初始化 sqlite3Worker1Promiser v2。
- * v2 从 ESM import 后返回 Promise<function>，resolve 后才拿到可用的 promiser。
+ *
+ * 关键: npm 包 ESM 导出的 sqlite3Worker1Promiser 实际就是 v2 工厂函数本体,
+ * 不是 v1 factory + .v2 属性. 见 @sqlite.org/sqlite-wasm/dist/index.mjs:
+ *   `var sqlite3_worker1_promiser_default = sqlite3Worker1Promiser.v2;`
+ *   `export { ..., sqlite3_worker1_promiser_default as sqlite3Worker1Promiser };`
+ *
+ * 但 .d.mts 类型声明仍按 v1 factory 标注（带 .v2 重载）, 与运行时不符——
+ * 这是 npm 包的 type bug, 用 as unknown as 断言到真实签名.
  */
 async function initPromiser(): Promise<PromiserFn> {
   if (promiserInstance !== null) {
@@ -129,18 +136,10 @@ async function initPromiser(): Promise<PromiserFn> {
   }
 
   try {
-    // v2: 直接 await 工厂调用，resolve 后得到 promiser 函数
-    // 类型断言：npm 包导出的类型覆盖不全，这里断言为我们定义的 PromiserFn
-    const factory = sqlite3Worker1Promiser as unknown as {
-      v2: (config?: {
-        onready?: (f: PromiserFn) => void;
-        onunhandled?: (event: unknown) => void;
-        debug?: (...args: unknown[]) => void;
-      }) => Promise<PromiserFn>;
-    };
-
-    const fn = await factory.v2();
-    promiserInstance = fn as PromiserFn;
+    // 直接 await 工厂调用, 返回 Promise<PromiserFn>, 无需 .v2() 属性访问
+    const v2Factory =
+      sqlite3Worker1Promiser as unknown as (config?: unknown) => Promise<PromiserFn>;
+    promiserInstance = await v2Factory();
     return promiserInstance;
   } catch (err) {
     throw new SqliteConnectionError(
