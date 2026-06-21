@@ -89,7 +89,7 @@ export async function runPoc(): Promise<PocResult> {
   // --- Step 2: 执行建表 SQL ---
   const schemaSql = getSchemaSql();
   try {
-    await db.exec({ sql: schemaSql });
+    await db.exec(schemaSql);
   } catch (err) {
     // 表已存在（重跑场景）——非致命，继续验证
     console.warn(
@@ -106,15 +106,15 @@ export async function runPoc(): Promise<PocResult> {
 
   // --- Step 4: 插入测试数据 ---
   // 先清理可能残留的测试数据（重跑场景）
-  await db.exec({ sql: `DELETE FROM medical_events WHERE title = '[PoC] 测试事件'` });
-  await db.exec({ sql: `DELETE FROM family_members WHERE name = '[PoC] 测试成员'` });
+  await db.exec(`DELETE FROM medical_events WHERE title = '[PoC] 测试事件'`);
+  await db.exec(`DELETE FROM family_members WHERE name = '[PoC] 测试成员'`);
 
   // 插入 family_member
-  await db.exec({
-    sql: `INSERT INTO family_members (name, nickname, birthday, gender)
-          VALUES ('[PoC] 测试成员', 'PoC', '2000-01-01', 'other')`,
-    countChanges: true,
-  });
+  await db.exec(
+    `INSERT INTO family_members (name, nickname, birthday, gender)
+     VALUES ('[PoC] 测试成员', 'PoC', '2000-01-01', 'other')`,
+    { countChanges: true },
+  );
 
   // 查回 member id
   const memberResp = await db.exec(
@@ -135,11 +135,11 @@ export async function runPoc(): Promise<PocResult> {
   }
 
   // 插入关联 medical_event（event_date 用合法 YYYY-MM-DD, 不是占位符前缀）
-  await db.exec({
-    sql: `INSERT INTO medical_events (member_id, event_date, title, event_type)
-          VALUES (?, '2000-01-01', '[PoC] 测试事件', 'checkup')`,
-    bind: [memberId],
-  });
+  await db.exec(
+    `INSERT INTO medical_events (member_id, event_date, title, event_type)
+     VALUES (?, '2000-01-01', '[PoC] 测试事件', 'checkup')`,
+    { bind: [memberId] },
+  );
 
   // 确认 event 存在
   const eventBeforeResp = await db.exec(
@@ -151,10 +151,7 @@ export async function runPoc(): Promise<PocResult> {
 
   // --- Step 5: CASCADE 验证 ---
   // 删除 member，检查 event 是否被级联删除
-  await db.exec({
-    sql: `DELETE FROM family_members WHERE id = ?`,
-    bind: [memberId],
-  });
+  await db.exec(`DELETE FROM family_members WHERE id = ?`, { bind: [memberId] });
 
   // event 应已被 CASCADE 删除（member_id 不再存在）
   // 用一个不可能的 member_id 查（原 memberId 已删）
@@ -168,7 +165,7 @@ export async function runPoc(): Promise<PocResult> {
   const cascadeWorked = orphanCount === 0;
 
   // 清理：删除可能残留的 PoC event（外键已断）
-  await db.exec({ sql: `DELETE FROM medical_events WHERE title = '[PoC] 测试事件'` });
+  await db.exec(`DELETE FROM medical_events WHERE title = '[PoC] 测试事件'`);
 
   // --- Step 6: 返回结果 ---
   return {

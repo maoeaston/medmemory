@@ -11,8 +11,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@sqlite.org/sqlite-wasm": "^3.45.1",
-    "jszip": "^3.12.1",
+    "@sqlite.org/sqlite-wasm": "3.53.0-build1",
+    "jszip": "^3.10.1",
     "pinia": "^2.1.7",
     "vue": "^3.4.21",
     "vue-router": "^4.3.0"

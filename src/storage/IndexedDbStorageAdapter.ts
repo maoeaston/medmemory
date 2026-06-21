@@ -276,10 +276,10 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
   async saveFile(key: string, blob: Blob): Promise<void> {
     this.validateKey(key);
-    await this.runRequest<void>('readwrite', (store) => {
-      // out-of-line key: 第二个参数是 key
-      return store.put(blob, key);
-    });
+    // store.put 返回 IDBRequest<IDBValidKey>; T 必须与之匹配, void 会被拒收
+    await this.runRequest<IDBValidKey>('readwrite', (store) =>
+      store.put(blob, key),
+    );
   }
 
   async getFile(key: string): Promise<Blob | null> {
