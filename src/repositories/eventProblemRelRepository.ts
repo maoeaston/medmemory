@@ -18,13 +18,7 @@ import type {
   HealthProblem,
   MedicalEvent,
 } from '@/repositories/interfaces';
-import {
-  executeWrite,
-  RepositoryError,
-  selectMany,
-} from '@/repositories/base';
-
-const TABLE = 'event_problem_rel';
+import { executeWrite, selectMany } from '@/repositories/base';
 
 export class EventProblemRelRepositoryImpl implements EventProblemRelRepository {
   constructor(private readonly db: DbHandle) {}
