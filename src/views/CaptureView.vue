@@ -8,12 +8,13 @@
 //   - Text 完整可用（TextCapture.vue）
 //   - Photo / Voice 建设中（后续 task 实现）, tab 显示但内容是占位
 import { ref } from 'vue';
+import PhotoCapture from '@/components/capture/PhotoCapture.vue';
 import TextCapture from '@/components/capture/TextCapture.vue';
 
 type CaptureTab = 'photo' | 'voice' | 'text';
 const activeTab = ref<CaptureTab>('text');
 const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[] = [
-  { id: 'photo', label: '拍照', icon: '📷', available: false },
+  { id: 'photo', label: '拍照', icon: '📷', available: true },
   { id: 'voice', label: '录音', icon: '🎤', available: false },
   { id: 'text', label: '文字', icon: '✍️', available: true },
 ];
@@ -43,11 +44,8 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
 
     <div class="tab-panel">
       <KeepAlive>
-        <TextCapture v-if="activeTab === 'text'" />
-        <div v-else-if="activeTab === 'photo'" class="wip-panel">
-          <p>📷 拍照入口建设中（task #18）</p>
-          <p class="wip-hint">将支持调起摄像头连拍检查报告 / 化验单 / 药盒。</p>
-        </div>
+        <PhotoCapture v-if="activeTab === 'photo'" />
+        <TextCapture v-else-if="activeTab === 'text'" />
         <div v-else-if="activeTab === 'voice'" class="wip-panel">
           <p>🎤 录音入口建设中（task #16）</p>
           <p class="wip-hint">将支持快捷语音备忘（例:"昨晚孩子 39 度, 吃了美林退到 37.5"）。</p>
