@@ -180,4 +180,18 @@ export class MedicalEventRepositoryImpl implements MedicalEventRepository {
     );
     return rows.map(toEntity);
   }
+
+  /**
+   * 跨成员全量事件, 按 event_date 倒序。
+   *
+   * 时间线视图用——语义是"按发生时间回溯", 与 listRecent 的"按录入时间"分开。
+   * 同一天内的事件按 id DESC（录入顺序的近似）稳定排序。
+   */
+  async listAll(): Promise<MedicalEvent[]> {
+    const rows = await selectMany<MedicalEventRow>(
+      this.db,
+      `SELECT * FROM medical_events ORDER BY event_date DESC, id DESC`,
+    );
+    return rows.map(toEntity);
+  }
 }

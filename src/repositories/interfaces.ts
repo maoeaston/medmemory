@@ -241,6 +241,9 @@ export interface MedicalEventRepository {
     range?: { from?: string; to?: string } // YYYY-MM-DD
   ): Promise<MedicalEvent[]>;
 
+  /** 跨成员全量事件（时间线视图: 按 event_date 倒序, 区别于 listRecent 的 created_at 语义） */
+  listAll(): Promise<MedicalEvent[]>;
+
   /** Dashboard "最近一次"维度：最近一次就诊/体检/住院（按 event_type） */
   findLatestByMember(
     memberId: number,
