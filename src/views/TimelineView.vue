@@ -26,6 +26,9 @@ const members = ref<FamilyMember[]>([]);
 const loadError = ref<string | null>(null);
 const isLoading = ref(false);
 
+// null = 全部成员; number = 仅该成员
+const selectedMemberId = ref<number | null>(null);
+
 const memberNameMap = computed(() => {
   const m = new Map<number, { name: string; nickname: string | null }>();
   for (const mem of members.value) {
@@ -44,10 +47,17 @@ const eventTypeLabel: Record<EventType, string> = {
   other: '其他',
 };
 
-/** 按 YYYY-MM 分桶; events 已按 event_date DESC 排序, Map 保插入顺序 → 桶自然倒序 */
+/** 按 selectedMemberId 过滤; null = 不过滤 */
+const filteredEvents = computed(() => {
+  const id = selectedMemberId.value;
+  if (id === null) return events.value;
+  return events.value.filter((ev) => ev.member_id === id);
+});
+
+/** 按 YYYY-MM 分桶; filteredEvents 已按 event_date DESC 排序, Map 保插入顺序 → 桶自然倒序 */
 const groupedByMonth = computed(() => {
   const buckets = new Map<string, MedicalEvent[]>();
-  for (const ev of events.value) {
+  for (const ev of filteredEvents.value) {
     const ym = ev.event_date.slice(0, 7); // YYYY-MM
     let arr = buckets.get(ym);
     if (arr === undefined) {
@@ -120,8 +130,25 @@ onMounted(() => {
   <main class="timeline-view">
     <header class="page-header">
       <h1 class="page-title">时间线</h1>
-      <span class="count-badge">{{ events.length }}</span>
+      <span class="count-badge">{{ filteredEvents.length }}</span>
     </header>
+
+    <div v-if="!isLoading && !loadError && events.length > 0" class="filters">
+      <select
+        v-model.number="selectedMemberId"
+        class="member-select"
+        aria-label="按成员筛选"
+      >
+        <option :value="null">全部成员</option>
+        <option
+          v-for="m in members"
+          :key="m.id"
+          :value="m.id"
+        >
+          {{ m.nickname ? `${m.name} (${m.nickname})` : m.name }}
+        </option>
+      </select>
+    </div>
 
     <p v-if="loadError" class="msg msg-error">加载失败: {{ loadError }}</p>
     <p v-else-if="isLoading" class="hint">加载中...</p>
@@ -138,6 +165,14 @@ onMounted(() => {
         <RouterLink to="/capture" class="link">快速记录</RouterLink>
         录入新内容。
       </p>
+    </div>
+
+    <div
+      v-else-if="filteredEvents.length === 0"
+      class="empty-state"
+    >
+      <p class="empty-title">该成员暂无医疗事件</p>
+      <p class="empty-hint">切换为"全部成员"查看其他成员的记录。</p>
     </div>
 
     <template v-else>
@@ -166,9 +201,9 @@ onMounted(() => {
                   <span class="event-title">{{ ev.title }}</span>
                 </div>
                 <div class="event-meta">
-                  <span class="event-member">{{ formatMember(ev.member_id) }}</span>
+                  <span v-if="selectedMemberId === null" class="event-member">{{ formatMember(ev.member_id) }}</span>
                   <span v-if="ev.hospital" class="event-hospital">
-                    · {{ ev.hospital }}<span v-if="ev.department"> / {{ ev.department }}</span>
+                    <span v-if="selectedMemberId === null">· </span>{{ ev.hospital }}<span v-if="ev.department"> / {{ ev.department }}</span>
                   </span>
                 </div>
                 <p v-if="ev.summary" class="event-summary">{{ ev.summary }}</p>
@@ -211,6 +246,28 @@ onMounted(() => {
   font-weight: 600;
   min-width: 1.6rem;
   text-align: center;
+}
+
+.filters {
+  margin-bottom: 1.25rem;
+}
+
+.member-select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  background: white;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.member-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .hint {
