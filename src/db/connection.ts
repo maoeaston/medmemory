@@ -221,6 +221,84 @@ async function openDatabase(promiser: PromiserFn): Promise<string> {
 }
 
 // ============================================================
+// 内部：Schema 自动 migration（首次打开数据库时执行）
+// ============================================================
+
+/**
+ * 当前 schema 目标版本。新增 migration 时递增。
+ * 对应 db/migrations/001_initial.sql 的 "001" + schema_migrations.version.
+ */
+const SCHEMA_TARGET_VERSION = 1;
+
+/**
+ * 首次打开数据库后自动跑 schema migration。
+ *
+ * 流程:
+ *   1. 保底建 schema_migrations 表（全新库时此表不存在, 不建的话 SELECT 会抛错）
+ *   2. SELECT 当前 version
+ *   3. 若 version < target, exec 完整 001_initial.sql（本身幂等: 所有 CREATE TABLE/INDEX
+ *      带 IF NOT EXISTS, INSERT INTO schema_migrations 用 INSERT OR IGNORE）
+ *
+ * 幂等性保证:
+ *   - 老用户（PoC 时代 exec 过 schema）: schema_migrations.version=1, SELECT 命中, 跳过 exec
+ *   - 新用户: schema_migrations 空表, currentVersion=0, 跑 schemaSql 建表 + 写 version=1
+ *   - 后续新增 002+ migration: 加版本判断分支即可, 架构已就位
+ *
+ * @throws SqliteConnectionError phase='migration' 当 schema SQL 执行失败
+ */
+async function runMigrations(promiser: PromiserFn): Promise<void> {
+  // Step 1: 保底建 schema_migrations（与 001_initial.sql 同结构, IF NOT EXISTS 幂等）
+  // applied_at 默认值与 001_initial.sql 一致, 避免行为分裂
+  try {
+    await promiser('exec', {
+      sql: `CREATE TABLE IF NOT EXISTS schema_migrations (
+        version    INTEGER PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+      );`,
+    });
+  } catch (err) {
+    throw new SqliteConnectionError(
+      'migration',
+      '保底 CREATE schema_migrations 失败（无法跟踪 migration 版本）',
+      err,
+    );
+  }
+
+  // Step 2: 查当前版本
+  let currentVersion = 0;
+  try {
+    const resp = await promiser('exec', {
+      sql: 'SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;',
+      rowMode: 'object',
+      resultRows: [],
+    });
+    const row = resp.result.resultRows?.[0] as { version?: number } | undefined;
+    currentVersion = row?.version ?? 0;
+  } catch (err) {
+    throw new SqliteConnectionError(
+      'migration',
+      'SELECT version FROM schema_migrations 失败（schema_migrations 状态异常）',
+      err,
+    );
+  }
+
+  // Step 3: 缺目标版本则跑 schema
+  if (currentVersion >= SCHEMA_TARGET_VERSION) {
+    return;
+  }
+
+  try {
+    await promiser('exec', { sql: schemaSql });
+  } catch (err) {
+    throw new SqliteConnectionError(
+      'migration',
+      `Schema migration 到 version ${SCHEMA_TARGET_VERSION} 失败（当前 version=${currentVersion}）`,
+      err,
+    );
+  }
+}
+
+// ============================================================
 // 公开 API：getDb（单例）
 // ============================================================
 
@@ -277,6 +355,11 @@ export async function getDb(): Promise<DbHandle> {
         err,
       );
     }
+
+    // Schema bootstrap: 首次打开时自动跑 migration（阻塞新用户冷启动）
+    // 老路径靠 window.medmemoryPoc.runPoc() 手动建表, 已废弃; 现在任何调 getDb()
+    // 的路径（生产 createRepositories / dev PoC）首次调用都会自动 migrate.
+    await runMigrations(promiser);
 
     activeDbId = dbId;
     return promiser;

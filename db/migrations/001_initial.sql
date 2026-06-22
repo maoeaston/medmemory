@@ -22,7 +22,7 @@ PRAGMA foreign_keys = ON;
 --      allergies:           [{name, severity, reaction}]
 --      chronic_conditions:  [{name, status, diagnosed_date}]
 -- ============================================================
-CREATE TABLE family_members (
+CREATE TABLE IF NOT EXISTS family_members (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     name                TEXT    NOT NULL,
     nickname            TEXT,
@@ -40,7 +40,7 @@ CREATE TABLE family_members (
 -- 2. medical_events — 医疗事件 (核心对象, 接近 EMR Encounter)
 --    problem_tag 已删除, 健康问题关联走 event_problem_rel
 -- ============================================================
-CREATE TABLE medical_events (
+CREATE TABLE IF NOT EXISTS medical_events (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id   INTEGER NOT NULL,
     event_date  TEXT    NOT NULL,   -- YYYY-MM-DD
@@ -55,14 +55,14 @@ CREATE TABLE medical_events (
     FOREIGN KEY (member_id) REFERENCES family_members(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_events_member_date ON medical_events (member_id, event_date DESC);
-CREATE INDEX idx_events_type        ON medical_events (event_type, event_date DESC);
+CREATE INDEX IF NOT EXISTS idx_events_member_date ON medical_events (member_id, event_date DESC);
+CREATE INDEX IF NOT EXISTS idx_events_type        ON medical_events (event_type, event_date DESC);
 
 -- ============================================================
 -- 3. inbox_items — Quick Capture 暂存 (v3.1 新增)
 --    归档后 status='archived', archived_event_id 指向转出的 event
 -- ============================================================
-CREATE TABLE inbox_items (
+CREATE TABLE IF NOT EXISTS inbox_items (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     capture_type        TEXT    NOT NULL CHECK (capture_type IN ('photo', 'voice', 'text')),
     storage_key         TEXT,   -- 媒体文件键 (photo/voice 用; text 可空)
@@ -74,14 +74,14 @@ CREATE TABLE inbox_items (
     FOREIGN KEY (archived_event_id) REFERENCES medical_events(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_inbox_status ON inbox_items (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_inbox_status ON inbox_items (status, created_at DESC);
 
 -- ============================================================
 -- 4. health_problems — 健康问题表 (v3 新增, 替代 problem_tag TEXT)
 --    status: active(进行中) / chronic(长期) / resolved(已结束)
 --    MVP 不做手工 CRUD; 通过 AI 推荐 + 一键确认渐进积累
 -- ============================================================
-CREATE TABLE health_problems (
+CREATE TABLE IF NOT EXISTS health_problems (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     member_id     INTEGER NOT NULL,
     name          TEXT    NOT NULL,
@@ -95,12 +95,12 @@ CREATE TABLE health_problems (
     FOREIGN KEY (member_id) REFERENCES family_members(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_problems_member ON health_problems (member_id, status);
+CREATE INDEX IF NOT EXISTS idx_problems_member ON health_problems (member_id, status);
 
 -- ============================================================
 -- 5. event_problem_rel — 事件 × 健康问题 多对多 (v3 新增)
 -- ============================================================
-CREATE TABLE event_problem_rel (
+CREATE TABLE IF NOT EXISTS event_problem_rel (
     event_id    INTEGER NOT NULL,
     problem_id  INTEGER NOT NULL,
     PRIMARY KEY (event_id, problem_id),
@@ -108,7 +108,7 @@ CREATE TABLE event_problem_rel (
     FOREIGN KEY (problem_id) REFERENCES health_problems(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_epr_problem ON event_problem_rel (problem_id);
+CREATE INDEX IF NOT EXISTS idx_epr_problem ON event_problem_rel (problem_id);
 
 -- ============================================================
 -- 6. attachments — 医疗资料附件 (v3 storage_key + tags, v3.1 加状态机)
@@ -116,7 +116,7 @@ CREATE INDEX idx_epr_problem ON event_problem_rel (problem_id);
 --    processing_status 状态机: UPLOADED → OCR_PROCESSING → OCR_DONE → SUMMARY_DONE
 --                              任何阶段可 → FAILED (processing_error 记录原因)
 -- ============================================================
-CREATE TABLE attachments (
+CREATE TABLE IF NOT EXISTS attachments (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id          INTEGER,   -- 可空 (Quick Capture 未归档时)
     file_name         TEXT    NOT NULL,
@@ -138,16 +138,16 @@ CREATE TABLE attachments (
     FOREIGN KEY (event_id) REFERENCES medical_events(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_attachments_event  ON attachments (event_id);
-CREATE INDEX idx_attachments_status ON attachments (processing_status);
-CREATE INDEX idx_attachments_event_doc ON attachments (event_id, doc_type);
+CREATE INDEX IF NOT EXISTS idx_attachments_event  ON attachments (event_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_status ON attachments (processing_status);
+CREATE INDEX IF NOT EXISTS idx_attachments_event_doc ON attachments (event_id, doc_type);
 
 -- ============================================================
 -- 7. ai_contents — AI 产出统一表 (v3 新增)
 --    content_type: summary(结构化摘要) / ocr_fulltext(原始 OCR 全文)
 --    支持多模型/多版本: 同一 attachment 可有多条记录, 按 created_at 取最新
 -- ============================================================
-CREATE TABLE ai_contents (
+CREATE TABLE IF NOT EXISTS ai_contents (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     attachment_id  INTEGER NOT NULL,
     content_type   TEXT    NOT NULL CHECK (content_type IN ('summary', 'ocr_fulltext')),
@@ -158,14 +158,14 @@ CREATE TABLE ai_contents (
     FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_ai_attachment ON ai_contents (attachment_id, content_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_attachment ON ai_contents (attachment_id, content_type, created_at DESC);
 
 -- ============================================================
 -- 8. medicines — 药箱 (v3.1 加 usage 用途字段)
 --    MVP 字段: name/usage/expiry_date/storage_location/remark/member_id
 --    第二阶段字段: photo_path/source_event_id
 -- ============================================================
-CREATE TABLE medicines (
+CREATE TABLE IF NOT EXISTS medicines (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     name             TEXT    NOT NULL,
     usage            TEXT,   -- v3.1: 用途 (退烧/过敏/腹泻/止咳…), 支持"发烧吃什么"式检索
@@ -181,16 +181,18 @@ CREATE TABLE medicines (
     FOREIGN KEY (source_event_id) REFERENCES medical_events(id)  ON DELETE SET NULL
 );
 
-CREATE INDEX idx_medicines_expiry ON medicines (expiry_date);
-CREATE INDEX idx_medicines_usage  ON medicines (usage);
-CREATE INDEX idx_medicines_member ON medicines (member_id);
+CREATE INDEX IF NOT EXISTS idx_medicines_expiry ON medicines (expiry_date);
+CREATE INDEX IF NOT EXISTS idx_medicines_usage  ON medicines (usage);
+CREATE INDEX IF NOT EXISTS idx_medicines_member ON medicines (member_id);
 
 -- ============================================================
 -- schema_migrations — 迁移版本跟踪
 -- ============================================================
-CREATE TABLE schema_migrations (
+CREATE TABLE IF NOT EXISTS schema_migrations (
     version    INTEGER PRIMARY KEY,
     applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
-INSERT INTO schema_migrations (version) VALUES (1);
+-- INSERT OR IGNORE 保幂等: schemaSql 若被重复 exec（migration 重跑 / PoC 手动触发）
+-- 不应因 version=1 已存在而报错。
+INSERT OR IGNORE INTO schema_migrations (version) VALUES (1);
