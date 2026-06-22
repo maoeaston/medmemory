@@ -42,6 +42,12 @@ const router = createRouter({
       component: () => import('@/views/EventsView.vue'),
     },
     {
+      path: '/events/:id',
+      name: 'event-detail',
+      component: () => import('@/views/EventDetailView.vue'),
+      props: (route) => ({ id: Number(route.params.id) }),
+    },
+    {
       path: '/timeline',
       name: 'timeline',
       component: () => import('@/views/TimelineView.vue'),
