@@ -18,6 +18,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRepositories } from '@/composables/useRepositories';
+import { useAiProcess } from '@/composables/useAiProcess';
+import { useAiConfig } from '@/composables/useAiConfig';
 import type { SuggestedHealthProblem } from '@/lib/ai/AiProvider';
 import type {
   AiContent,
@@ -51,6 +53,46 @@ const pendingSuggestions = ref<AiContent[]>([]);
 const manualProblemInput = ref('');
 const isProcessingProblem = ref(false);
 const problemError = ref<string | null>(null);
+
+// 子项 1: localStorage 软忽略状态
+const ignoredSuggestionNames = ref<Set<string>>(new Set());
+const showIgnoredSection = ref(false);
+
+/** localStorage key: per-event 软忽略健康问题推荐 name 数组 */
+function ignoredSuggestionsKey(eventId: number): string {
+  return `medmemory:event:${eventId}:ignoredSuggestions`;
+}
+
+function loadIgnoredNames(eventId: number): Set<string> {
+  try {
+    const raw = localStorage.getItem(ignoredSuggestionsKey(eventId));
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveIgnoredNames(eventId: number, names: Set<string>): void {
+  try {
+    localStorage.setItem(
+      ignoredSuggestionsKey(eventId),
+      JSON.stringify(Array.from(names)),
+    );
+  } catch (e) {
+    console.warn(
+      '[EventDetailView] localStorage 写入失败, 忽略状态将不持久:',
+      e,
+    );
+  }
+}
+
+// 子项 3: 纯文本事件 AI 推荐状态
+const { processTextEventSuggestions, isProcessing: isAiProcessing } =
+  useAiProcess();
+const { hasKey } = useAiConfig();
 
 // 编辑 modal 状态
 const showEditModal = ref(false);
@@ -92,7 +134,14 @@ interface DedupSuggestion {
   aiContentIds: number[];
 }
 
-const dedupSuggestions = computed<DedupSuggestion[]>(() => {
+/**
+ * 共享的去重聚合逻辑。filter 控制只保留 / 只排除被软忽略的 name。
+ * - dedupSuggestions 用 (name) => !ignored.has(name)
+ * - ignoredDedupSuggestions 用 (name) => ignored.has(name)
+ */
+function buildDedupSuggestions(
+  filter: (name: string) => boolean,
+): DedupSuggestion[] {
   const map = new Map<string, DedupSuggestion>();
   for (const ai of pendingSuggestions.value) {
     let parsed: SuggestedHealthProblem;
@@ -102,6 +151,7 @@ const dedupSuggestions = computed<DedupSuggestion[]>(() => {
       continue; // 忽略损坏的 JSON
     }
     if (typeof parsed.name !== 'string' || parsed.name.trim() === '') continue;
+    if (!filter(parsed.name)) continue;
 
     const confidence: SuggestedHealthProblem['confidence'] =
       parsed.confidence === 'high' ||
@@ -122,6 +172,23 @@ const dedupSuggestions = computed<DedupSuggestion[]>(() => {
     }
   }
   return Array.from(map.values());
+}
+
+const dedupSuggestions = computed<DedupSuggestion[]>(() =>
+  buildDedupSuggestions((name) => !ignoredSuggestionNames.value.has(name)),
+);
+
+/** 已软忽略的推荐列表（折叠区展示, 允许恢复） */
+const ignoredDedupSuggestions = computed<DedupSuggestion[]>(() =>
+  buildDedupSuggestions((name) => ignoredSuggestionNames.value.has(name)),
+);
+
+// === 子项 3: 纯文本事件 AI 推荐按钮可见性 ===
+const canTriggerTextSuggestion = computed(() => {
+  if (event.value === null) return false;
+  if (!hasKey.value) return false;
+  if (isProcessingProblem.value || isAiProcessing.value) return false;
+  return !!(event.value.title || event.value.summary);
 });
 
 async function loadAll(): Promise<void> {
@@ -161,6 +228,8 @@ async function loadAll(): Promise<void> {
     if (suggestionsResult.status === 'fulfilled') {
       pendingSuggestions.value = suggestionsResult.value;
     }
+    // 子项 1: 从 localStorage 载入软忽略列表（per-event）
+    ignoredSuggestionNames.value = loadIgnoredNames(ev.id);
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
   } finally {
@@ -256,22 +325,53 @@ async function confirmSuggestion(s: DedupSuggestion): Promise<void> {
 }
 
 /**
- * 跳过一条 AI 推荐: 删除所有同名 ai_contents (不 attach)。
+ * 跳过一条 AI 推荐: 软忽略（localStorage 记 name）, 不删 ai_contents 行。
+ * dedupSuggestions computed 会响应过滤, UI 立刻消失。
+ * 用户可在"已忽略"折叠区恢复, 不需要重新跑 AI。
  */
 async function ignoreSuggestion(s: DedupSuggestion): Promise<void> {
   if (event.value === null || isProcessingProblem.value) return;
   isProcessingProblem.value = true;
   problemError.value = null;
   try {
-    const repos = await useRepositories();
-    await Promise.all(
-      s.aiContentIds.map((id) => repos.aiContent.delete(id)),
-    );
-    await reloadHealthLinks(event.value.id);
+    const newSet = new Set(ignoredSuggestionNames.value);
+    newSet.add(s.name);
+    ignoredSuggestionNames.value = newSet;
+    saveIgnoredNames(event.value.id, newSet);
+    // 不调 reloadHealthLinks - computed 响应 ignoredSuggestionNames 自动过滤
   } catch (e) {
     problemError.value = e instanceof Error ? e.message : String(e);
   } finally {
     isProcessingProblem.value = false;
+  }
+}
+
+/** 恢复单条已忽略推荐 */
+async function restoreIgnored(name: string): Promise<void> {
+  if (event.value === null) return;
+  const newSet = new Set(ignoredSuggestionNames.value);
+  newSet.delete(name);
+  ignoredSuggestionNames.value = newSet;
+  saveIgnoredNames(event.value.id, newSet);
+}
+
+/** 恢复全部已忽略推荐 */
+async function restoreAllIgnored(): Promise<void> {
+  if (event.value === null) return;
+  ignoredSuggestionNames.value = new Set();
+  saveIgnoredNames(event.value.id, new Set());
+  showIgnoredSection.value = false;
+}
+
+// === 子项 3: 纯文本事件 AI 推荐入口 ===
+async function handleTextSuggestion(): Promise<void> {
+  if (event.value === null || isAiProcessing.value) return;
+  problemError.value = null;
+  try {
+    await processTextEventSuggestions(event.value.id);
+    await reloadHealthLinks(event.value.id);
+  } catch (e) {
+    problemError.value = e instanceof Error ? e.message : String(e);
   }
 }
 
@@ -423,6 +523,24 @@ onMounted(() => {
           <span class="count-badge">{{ linkedProblems.length }}</span>
         </h2>
 
+        <!-- 子项 3: AI 推荐入口（纯文本事件也能触发） -->
+        <div class="health-actions-bar">
+          <button
+            type="button"
+            class="btn btn-secondary btn-small"
+            :disabled="!canTriggerTextSuggestion"
+            :title="!hasKey ? '未配置 AI, 请到设置页填 API key' : ''"
+            @click="handleTextSuggestion"
+          >
+            {{ isAiProcessing ? '✨ AI 推荐中...' : '✨ AI 推荐问题' }}
+          </button>
+          <span v-if="!hasKey" class="hint-text">
+            未配置 AI（
+            <RouterLink to="/settings" class="link">设置页</RouterLink>
+            填 API key）
+          </span>
+        </div>
+
         <!-- 已关联 (可 detach) -->
         <div v-if="linkedProblems.length > 0" class="problem-tags">
           <span
@@ -486,6 +604,36 @@ onMounted(() => {
                 @click="ignoreSuggestion(s)"
               >跳过</button>
             </div>
+          </div>
+        </div>
+
+        <!-- 子项 1: 已忽略推荐折叠区（可恢复） -->
+        <div v-if="ignoredDedupSuggestions.length > 0" class="ignored-section">
+          <button
+            type="button"
+            class="ignored-toggle"
+            @click="showIgnoredSection = !showIgnoredSection"
+          >
+            {{ showIgnoredSection ? '▼' : '▶' }} 已忽略 {{ ignoredDedupSuggestions.length }} 条
+          </button>
+          <div v-if="showIgnoredSection" class="ignored-list">
+            <div
+              v-for="s in ignoredDedupSuggestions"
+              :key="s.name"
+              class="ignored-row"
+            >
+              <span class="ignored-name">{{ s.name }}</span>
+              <button
+                type="button"
+                class="btn btn-ghost btn-small"
+                @click="restoreIgnored(s.name)"
+              >恢复</button>
+            </div>
+            <button
+              type="button"
+              class="btn btn-ghost btn-small restore-all-btn"
+              @click="restoreAllIgnored"
+            >恢复全部</button>
           </div>
         </div>
 
@@ -807,7 +955,7 @@ onMounted(() => {
 .suggestion-row {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.8rem;
   padding: 0.4rem 0.5rem;
   background: white;
   border-radius: 4px;
@@ -844,7 +992,75 @@ onMounted(() => {
 
 .suggestion-actions {
   display: flex;
-  gap: 0.3rem;
+  gap: 0.5rem;
+}
+
+.suggestion-actions button {
+  min-width: 3rem;
+}
+
+/* === 子项 3: AI 推荐入口 === */
+.health-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.hint-text {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+/* === 子项 1: 已忽略折叠区 === */
+.ignored-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  background: #f9fafb;
+  border-radius: 4px;
+  border: 1px dashed #e5e7eb;
+}
+
+.ignored-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: #6b7280;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ignored-toggle:hover {
+  color: #1f2937;
+}
+
+.ignored-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ignored-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.ignored-name {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.restore-all-btn {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  text-decoration: underline;
 }
 
 .attachments-section {

@@ -25,7 +25,7 @@ import { useRepositories } from '@/composables/useRepositories';
 import { useAiConfig } from '@/composables/useAiConfig';
 import { IndexedDbStorageAdapter } from '@/storage/IndexedDbStorageAdapter';
 import { OpenAiProvider } from '@/lib/ai/OpenAiProvider';
-import { MEDICAL_DOCUMENT_PROMPT, PROMPT_VERSION } from '@/lib/ai/prompts';
+import { MEDICAL_DOCUMENT_PROMPT, PROMPT_VERSION, HEALTH_PROBLEM_TEXT_SUGGESTION_PROMPT, TEXT_SUGGESTION_PROMPT_VERSION } from '@/lib/ai/prompts';
 import { AiProviderError } from '@/lib/ai/AiProvider';
 import type { AiProcessingResult } from '@/lib/ai/AiProvider';
 import type {
@@ -143,6 +143,87 @@ export function useAiProcess() {
           writeErr,
         );
       }
+      processingError.value = msg;
+      throw e;
+    } finally {
+      isProcessing.value = false;
+    }
+  }
+
+  /**
+   * 纯文本事件 AI 推荐健康问题（v3.1 PRD 7.4 体验完善）。
+   *
+   * 与 processAttachment 区别:
+   *   - 输入事件而非附件（无图片）
+   *   - 不推进 attachments.processing_status（无附件可推）
+   *   - 仅写 ai_contents (attachment_id=NULL, event_id=eventId)
+   *   - 失败不写 FAILED（无 attachment 可标 FAILED, 错误仅抛出给 UI）
+   *
+   * @throws API key/baseUrl/model 缺失 / 事件不存在 / 事件缺 title+summary / provider 调用失败
+   */
+  async function processTextEventSuggestions(eventId: number): Promise<void> {
+    const { apiKey, baseUrl, model, hasKey } = useAiConfig();
+    if (!hasKey.value) {
+      const msg = '未配置 API key, 请到设置页填写';
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+    if (!baseUrl.value) {
+      const msg = '未配置 Base URL, 请到设置页填写';
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+    if (!model.value) {
+      const msg = '未配置 Model, 请到设置页填写';
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+
+    const repos = await useRepositories();
+    const event = await repos.medicalEvent.getById(eventId);
+    if (event === null) {
+      const msg = `事件不存在 (id=${eventId})`;
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+    if (!event.title && !event.summary) {
+      const msg = '事件缺少 title 和 summary, 无法推荐';
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+
+    const member = await repos.familyMember.getById(event.member_id);
+
+    isProcessing.value = true;
+    processingError.value = null;
+
+    try {
+      const provider = new OpenAiProvider(apiKey.value, baseUrl.value, model.value);
+      const suggestions = await provider.suggestHealthProblemsFromText({
+        title: event.title,
+        summary: event.summary,
+        event_type: event.event_type,
+        memberAge: computeAgeFromBirthday(member?.birthday ?? null),
+        memberGender: member?.gender ?? undefined,
+        prompt: HEALTH_PROBLEM_TEXT_SUGGESTION_PROMPT,
+      });
+
+      if (suggestions.length > 0) {
+        await Promise.all(
+          suggestions.map((s) =>
+            repos.aiContent.create({
+              attachment_id: null,
+              event_id: eventId,
+              content_type: 'suggested_health_problems',
+              model: model.value,
+              prompt_version: TEXT_SUGGESTION_PROMPT_VERSION,
+              content: JSON.stringify(s),
+            }),
+          ),
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       processingError.value = msg;
       throw e;
     } finally {
@@ -355,9 +436,30 @@ export function useAiProcess() {
     processingError,
     batchProgress,
     processAttachment,
+    processTextEventSuggestions,
     processBatch,
     isApiKeyError,
   };
+}
+
+/**
+ * 从 YYYY-MM-DD 算年龄（int）。非法/未来/超 150 岁 → undefined。
+ */
+function computeAgeFromBirthday(birthday: string | null): number | undefined {
+  if (!birthday) return undefined;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthday);
+  if (!match) return undefined;
+  const birthYear = parseInt(match[1], 10);
+  const birthMonth = parseInt(match[2], 10);
+  const birthDay = parseInt(match[3], 10);
+  const now = new Date();
+  let age = now.getUTCFullYear() - birthYear;
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentDay = now.getUTCDate();
+  if (currentMonth < birthMonth || (currentMonth === birthMonth && currentDay < birthDay)) {
+    age--;
+  }
+  return age >= 0 && age < 150 ? age : undefined;
 }
 
 /**

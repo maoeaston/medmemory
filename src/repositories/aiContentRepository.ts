@@ -30,7 +30,8 @@ const TABLE = 'ai_contents';
 
 interface AiContentRow {
   id: number;
-  attachment_id: number;
+  attachment_id: number | null;
+  event_id: number | null;
   content_type: AiContentType;
   model: string;
   prompt_version: string;
@@ -48,10 +49,11 @@ export class AiContentRepositoryImpl implements AiContentRepository {
   async create(input: AiContentCreateInput): Promise<AiContent> {
     const id = await executeInsertReturningId(
       this.db,
-      `INSERT INTO ai_contents (attachment_id, content_type, model, prompt_version, content)
-       VALUES (?, ?, ?, ?, ?) RETURNING id`,
+      `INSERT INTO ai_contents (attachment_id, event_id, content_type, model, prompt_version, content)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         input.attachment_id,
+        input.event_id,
         input.content_type,
         input.model,
         input.prompt_version,
@@ -121,8 +123,11 @@ export class AiContentRepositoryImpl implements AiContentRepository {
   /**
    * 查 event 下所有待确认的 AI 推荐健康问题。
    *
-   * JOIN attachments 按 event_id 过滤 + content_type='suggested_health_problems'。
-   * 不依赖 idx_ai_attachment (跨 attachment 查询, 走 attachments.event_id 索引)。
+   * 两路 OR (migration 004 后):
+   *   - 附件级 AI 推荐: ai_contents.attachment_id IN (该 event 的附件)
+   *   - 纯文本事件 AI 推荐: ai_contents.event_id = 该 event
+   *
+   * 走 idx_ai_event (event_id, content_type) + attachments.event_id 索引。
    * 返回原始行, 由应用层解析 content JSON。
    */
   async listPendingSuggestionsByEvent(
@@ -132,10 +137,11 @@ export class AiContentRepositoryImpl implements AiContentRepository {
       this.db,
       `SELECT ai.*
          FROM ai_contents ai
-         JOIN attachments a ON a.id = ai.attachment_id
-        WHERE a.event_id = ? AND ai.content_type = 'suggested_health_problems'
+        WHERE ai.content_type = 'suggested_health_problems'
+          AND (ai.event_id = ?
+               OR ai.attachment_id IN (SELECT id FROM attachments WHERE event_id = ?))
         ORDER BY ai.created_at DESC`,
-      [eventId],
+      [eventId, eventId],
     );
     return rows.map(toEntity);
   }

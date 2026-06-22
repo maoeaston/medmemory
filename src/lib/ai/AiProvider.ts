@@ -26,6 +26,26 @@ export interface MultimodalRequest {
 }
 
 /**
+ * 纯文本事件 AI 推荐请求（v3.1 PRD 7.4 体验完善）。
+ *
+ * 与 MultimodalRequest 区别:
+ *   - 无 imageBlob, 输入只有事件文本（title + summary + 类型）
+ *   - 输出只有 suggestedHealthProblems, 不产出 summary/ocr/lab_indicators
+ *
+ * 用途: 无附件的事件也允许 AI 推荐健康问题, 复用 health-problem 推荐闭环。
+ */
+export interface TextSuggestionRequest {
+  title: string;
+  summary: string | null;
+  event_type: string;
+  /** 成员年龄（已知则传, 提升 prompt 准确性） */
+  memberAge?: number;
+  /** 成员性别（已知则传） */
+  memberGender?: string;
+  prompt: string;
+}
+
+/**
  * 化验单单项指标（LLM 产出, 与 report_indicators 表对齐）。
  * 字段含义见 db/migrations/002_lab_indicators.sql。
  */
@@ -92,6 +112,15 @@ export interface AiProvider {
   readonly model: string;
   /** 执行多模态调用, 返回结构化结果 */
   processMedicalDocument(req: MultimodalRequest): Promise<AiProcessingResult>;
+  /**
+   * 纯文本事件推荐健康问题（v3.1 PRD 7.4 体验完善）。
+   *
+   * 输入无图片, 仅基于事件 title/summary/event_type + 可选成员信息。
+   * 输出与图片版 suggestedHealthProblems 同结构, 写入 ai_contents 复用确认闭环。
+   */
+  suggestHealthProblemsFromText(
+    req: TextSuggestionRequest,
+  ): Promise<SuggestedHealthProblem[]>;
 }
 
 /**

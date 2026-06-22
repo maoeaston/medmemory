@@ -137,7 +137,10 @@ export interface Attachment {
 
 export interface AiContent {
   id: number;
-  attachment_id: number;
+  /** 附件级 AI 内容（summary/ocr_fulltext/附件触发的 suggested_health_problems）填, 纯文本事件触发的填 null */
+  attachment_id: number | null;
+  /** 纯文本事件 AI 推荐填, 附件级 AI 内容填 null（migration 004 新增） */
+  event_id: number | null;
   content_type: AiContentType;
   model: string;
   prompt_version: string;
@@ -227,10 +230,15 @@ export type AttachmentCreateInput = Pick<
   | 'tags'
 >;
 
-export type AiContentCreateInput = Pick<
-  AiContent,
-  'attachment_id' | 'content_type' | 'model' | 'prompt_version' | 'content'
->;
+export interface AiContentCreateInput {
+  attachment_id: number | null;
+  /** 纯文本事件 AI 推荐填, 附件级内容可不传 (默认 NULL) */
+  event_id?: number | null;
+  content_type: AiContentType;
+  model: string;
+  prompt_version: string;
+  content: string;
+}
 
 export type LabIndicatorCreateInput = Omit<
   LabIndicator,
@@ -418,11 +426,15 @@ export interface AiContentRepository {
     contentType?: AiContentType
   ): Promise<AiContent[]>;
   /**
-   * 查 event 下所有待确认的 AI 推荐健康问题 (JOIN attachments)。
+   * 查 event 下所有待确认的 AI 推荐健康问题。
+   *
+   * 来源两路 OR:
+   *   - 附件级 AI 推荐: ai_contents.attachment_id IN (该 event 的附件)
+   *   - 纯文本事件 AI 推荐: ai_contents.event_id = 该 event
    *
    * 用途: EventDetailView 进入时聚合展示"待确认推荐"区块。
    * 每个 suggestion 是一条 ai_contents 记录 (content 存 SuggestedHealthProblem JSON),
-   * 用户确认/跳过后由应用层 delete。
+   * 用户确认/跳过后由应用层 delete 或 localStorage 软忽略。
    */
   listPendingSuggestionsByEvent(eventId: number): Promise<AiContent[]>;
   delete(id: number): Promise<void>;

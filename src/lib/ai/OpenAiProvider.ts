@@ -29,6 +29,7 @@ import {
   type LabIndicatorExtracted,
   type MultimodalRequest,
   type SuggestedHealthProblem,
+  type TextSuggestionRequest,
 } from './AiProvider';
 import type { DocType } from '@/repositories';
 
@@ -200,6 +201,98 @@ export class OpenAiProvider implements AiProvider {
     }
 
     return parseMedicalDocumentJson(rawContent);
+  }
+
+  /**
+   * 纯文本事件推荐健康问题（v3.1 PRD 7.4 体验完善）。
+   *
+   * 与 processMedicalDocument 区别:
+   *   - messages 无 image_url, user content 是拼好的事件上下文字符串
+   *   - 输出只解析 suggested_health_problems 字段
+   *   - 复用 validateSuggestedHealthProblems 校验（非法元素降级丢弃）
+   *
+   * fetch/error/JSON 解析逻辑与 processMedicalDocument 类似, 但 messages 类型不同,
+   * 不强行抽出共用方法（v3.2 加 agent 时再统一重构 callJsonCompletion）。
+   */
+  async suggestHealthProblemsFromText(
+    req: TextSuggestionRequest,
+  ): Promise<SuggestedHealthProblem[]> {
+    const contextLines: string[] = [
+      `event_type: ${req.event_type}`,
+      `title: ${req.title}`,
+    ];
+    if (req.summary) {
+      contextLines.push(`summary: ${req.summary}`);
+    }
+    if (req.memberAge !== undefined) {
+      contextLines.push(`member_age: ${req.memberAge}`);
+    }
+    if (req.memberGender) {
+      contextLines.push(`member_gender: ${req.memberGender}`);
+    }
+    const userContent = contextLines.join('\n');
+
+    const body = {
+      model: this.model,
+      messages: [
+        { role: 'system' as const, content: req.prompt },
+        { role: 'user' as const, content: userContent },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    };
+
+    let resp: Response;
+    try {
+      resp = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      throw new AiProviderError(
+        `网络请求失败: ${e instanceof Error ? e.message : String(e)}`,
+        'network',
+      );
+    }
+
+    if (!resp.ok) {
+      throw await httpErrorFromResponse(resp);
+    }
+
+    let json: OpenAiChatResponse;
+    try {
+      json = (await resp.json()) as OpenAiChatResponse;
+    } catch (e) {
+      throw new AiProviderError(
+        `响应 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`,
+        'bad-response',
+        resp.status,
+      );
+    }
+
+    const rawContent = json.choices?.[0]?.message?.content;
+    if (typeof rawContent !== 'string') {
+      throw new AiProviderError(
+        '响应缺少 choices[0].message.content',
+        'bad-response',
+        resp.status,
+      );
+    }
+
+    let parsed: { suggested_health_problems?: unknown };
+    try {
+      parsed = JSON.parse(rawContent) as typeof parsed;
+    } catch (e) {
+      throw new AiProviderError(
+        `GPT 输出 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}。原始: ${rawContent.slice(0, 200)}`,
+        'bad-response',
+      );
+    }
+    return validateSuggestedHealthProblems(parsed.suggested_health_problems);
   }
 }
 
