@@ -1,21 +1,644 @@
 <script setup lang="ts">
-// MVP 骨架占位 —— 药箱（PRD 7.10）见独立 task
+// MedicinesView —— 药箱列表 + CRUD + 过期预警
+//
+// 模式（沿用 MembersView）:
+//   - "+ 添加药品" → MedicineForm modal（创建模式）
+//   - 行内"编辑" → MedicineForm modal（编辑模式, member_id disabled）
+//   - 行内"删除" → ConfirmDialog → medicine.delete(id)
+//
+// 筛选:
+//   - 搜索框: 前端 substring 匹配 name + usage, 不区分大小写
+//   - filter tabs: 全部 / 即将过期 (30 天内) / 已过期 / 家庭共用
+//
+// 过期判定: 本地 THIS_MONTH 常量比对, 与 Dashboard MedicineWarningPanel 对齐
+//   不调 listExpiring(30) —— listAll 已含全部, 前端计算省一次 DB 查询
+import { computed, onMounted, ref } from 'vue';
+import { useRepositories } from '@/composables/useRepositories';
+import type {
+  FamilyMember,
+  Medicine,
+  MedicineCreateInput,
+  MedicineUpdateInput,
+} from '@/repositories';
+import ModalOverlay from '@/components/ui/ModalOverlay.vue';
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
+import MedicineForm from '@/components/medicines/MedicineForm.vue';
+
+// === 数据 ===
+const medicines = ref<Medicine[]>([]);
+const members = ref<FamilyMember[]>([]);
+const isLoading = ref(false);
+const loadError = ref<string | null>(null);
+const membersLoadError = ref<string | null>(null);
+
+// === 筛选状态 ===
+const searchUsage = ref('');
+type TabKey = 'all' | 'soon' | 'expired' | 'shared';
+const activeTab = ref<TabKey>('all');
+
+const tabs: ReadonlyArray<{ key: TabKey; label: string }> = [
+  { key: 'all', label: '全部' },
+  { key: 'soon', label: '即将过期' },
+  { key: 'expired', label: '已过期' },
+  { key: 'shared', label: '家庭共用' },
+];
+
+// === Form modal 状态 ===
+const showFormModal = ref(false);
+const editingMedicine = ref<Medicine | null>(null);
+const isSaving = ref(false);
+const saveError = ref<string | null>(null);
+
+// === 删除状态 ===
+const deletingMedicine = ref<Medicine | null>(null);
+const isDeleting = ref(false);
+const deleteError = ref<string | null>(null);
+
+// === 时间常量（组件挂载时计算一次, 与 MedicineWarningPanel 逻辑一致）===
+// YYYY-MM 格式; expiry_date 是月粒度, "<本月" 即已过期
+const THIS_MONTH = new Date().toISOString().slice(0, 7);
+const MONTH_PLUS_30 = new Date(Date.now() + 30 * 86400 * 1000)
+  .toISOString()
+  .slice(0, 7);
+
+type MedStatus = 'expired' | 'soon' | 'ok';
+
+function statusOf(m: Medicine): MedStatus {
+  if (!m.expiry_date) return 'ok';
+  if (m.expiry_date < THIS_MONTH) return 'expired';
+  if (m.expiry_date <= MONTH_PLUS_30) return 'soon';
+  return 'ok';
+}
+
+async function loadData(): Promise<void> {
+  isLoading.value = true;
+  loadError.value = null;
+
+  let repos;
+  try {
+    repos = await useRepositories();
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : String(e);
+    isLoading.value = false;
+    return;
+  }
+
+  // 并行加载 medicines + members; members 失败不阻塞主列表
+  const [medsResult, mbsResult] = await Promise.allSettled([
+    repos.medicine.listAll(),
+    repos.familyMember.list(),
+  ]);
+
+  if (medsResult.status === 'fulfilled') {
+    medicines.value = medsResult.value;
+    loadError.value = null;
+  } else {
+    medicines.value = [];
+    loadError.value =
+      medsResult.reason instanceof Error
+        ? medsResult.reason.message
+        : String(medsResult.reason);
+  }
+
+  if (mbsResult.status === 'fulfilled') {
+    members.value = mbsResult.value;
+    membersLoadError.value = null;
+  } else {
+    members.value = [];
+    membersLoadError.value =
+      mbsResult.reason instanceof Error
+        ? mbsResult.reason.message
+        : String(mbsResult.reason);
+  }
+
+  isLoading.value = false;
+}
+
+const counts = computed(() => {
+  let soon = 0;
+  let expired = 0;
+  let shared = 0;
+  for (const m of medicines.value) {
+    const s = statusOf(m);
+    if (s === 'expired') expired++;
+    else if (s === 'soon') soon++;
+    if (m.member_id === null) shared++;
+  }
+  return {
+    all: medicines.value.length,
+    soon,
+    expired,
+    shared,
+  };
+});
+
+const filtered = computed(() => {
+  const q = searchUsage.value.trim().toLowerCase();
+  const tab = activeTab.value;
+  return medicines.value
+    .filter((m) => {
+      // tab 过滤
+      if (tab === 'soon' && statusOf(m) !== 'soon') return false;
+      if (tab === 'expired' && statusOf(m) !== 'expired') return false;
+      if (tab === 'shared' && m.member_id !== null) return false;
+      // 搜索过滤: 匹配 name + usage
+      if (q) {
+        const name = m.name.toLowerCase();
+        const usage = (m.usage ?? '').toLowerCase();
+        if (!name.includes(q) && !usage.includes(q)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      // expiry_date 升序, null 排最后
+      const ae = a.expiry_date ?? '9999-12';
+      const be = b.expiry_date ?? '9999-12';
+      return ae.localeCompare(be);
+    });
+});
+
+function memberName(m: Medicine): string {
+  if (m.member_id === null) return '家庭共用';
+  const found = members.value.find((x) => x.id === m.member_id);
+  return found ? found.name : '(成员已删除)';
+}
+
+function expiryLabel(m: Medicine): string {
+  if (!m.expiry_date) return '';
+  const s = statusOf(m);
+  if (s === 'expired') return `已过期 · ${m.expiry_date}`;
+  if (s === 'soon') return `即将过期 · ${m.expiry_date}`;
+  return `到期 ${m.expiry_date}`;
+}
+
+// === CRUD handlers（MembersView 模式）===
+function openCreateModal(): void {
+  editingMedicine.value = null;
+  saveError.value = null;
+  showFormModal.value = true;
+}
+
+function openEditModal(m: Medicine): void {
+  editingMedicine.value = m;
+  saveError.value = null;
+  showFormModal.value = true;
+}
+
+function closeFormModal(): void {
+  if (isSaving.value) return; // 保存中不允许关闭
+  showFormModal.value = false;
+  editingMedicine.value = null;
+  saveError.value = null;
+}
+
+async function handleSubmit(
+  input: MedicineCreateInput | MedicineUpdateInput,
+): Promise<void> {
+  isSaving.value = true;
+  saveError.value = null;
+  try {
+    const repos = await useRepositories();
+    if (editingMedicine.value === null) {
+      await repos.medicine.create(input as MedicineCreateInput);
+    } else {
+      await repos.medicine.update(
+        editingMedicine.value.id,
+        input as MedicineUpdateInput,
+      );
+    }
+    showFormModal.value = false;
+    editingMedicine.value = null;
+    await loadData();
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+function openDeleteModal(m: Medicine): void {
+  deletingMedicine.value = m;
+  deleteError.value = null;
+}
+
+function closeDeleteModal(): void {
+  if (isDeleting.value) return;
+  deletingMedicine.value = null;
+  deleteError.value = null;
+}
+
+async function handleDeleteConfirm(): Promise<void> {
+  const target = deletingMedicine.value;
+  if (target === null) return;
+  isDeleting.value = true;
+  deleteError.value = null;
+  try {
+    const repos = await useRepositories();
+    await repos.medicine.delete(target.id);
+    deletingMedicine.value = null;
+    await loadData();
+  } catch (e) {
+    deleteError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    isDeleting.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadData();
+});
 </script>
 
 <template>
-  <main class="placeholder">
-    <h1>药箱</h1>
-    <p class="hint">药品清单 + 过期预警 + 按用途检索建设中。</p>
+  <main class="medicines-view">
+    <header class="page-header">
+      <h1 class="page-title">💊 药箱</h1>
+      <button
+        type="button"
+        class="btn btn-primary"
+        @click="openCreateModal"
+      >
+        + 添加药品
+      </button>
+    </header>
+
+    <div class="filters">
+      <input
+        v-model="searchUsage"
+        type="search"
+        class="search-input"
+        placeholder="按名称或用途搜索（如: 退烧）"
+      />
+      <div class="filter-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          class="filter-tab"
+          :class="{
+            active: activeTab === tab.key,
+            'tab-soon': tab.key === 'soon' && counts.soon > 0,
+            'tab-expired': tab.key === 'expired' && counts.expired > 0,
+          }"
+          @click="activeTab = tab.key"
+        >
+          <span class="tab-label">{{ tab.label }}</span>
+          <span class="tab-count">{{ counts[tab.key] }}</span>
+        </button>
+      </div>
+    </div>
+
+    <p v-if="loadError" class="msg msg-error">加载失败: {{ loadError }}</p>
+    <p v-else-if="isLoading" class="hint">加载中...</p>
+    <p
+      v-else-if="medicines.length === 0"
+      class="empty-state"
+    >
+      还没有药品。点击上方"+ 添加药品"开始建档。
+    </p>
+    <p
+      v-else-if="filtered.length === 0"
+      class="empty-state"
+    >
+      当前筛选条件下没有药品。
+    </p>
+
+    <ul v-else class="medicine-list">
+      <li
+        v-for="m in filtered"
+        :key="m.id"
+        class="medicine-item"
+        :class="`status-${statusOf(m)}`"
+      >
+        <div class="med-info">
+          <div class="name-row">
+            <span class="med-name">{{ m.name }}</span>
+            <span v-if="m.usage" class="med-usage">{{ m.usage }}</span>
+          </div>
+          <div class="meta-row">
+            <span v-if="m.expiry_date" class="med-expiry">
+              {{ expiryLabel(m) }}
+            </span>
+            <span v-if="m.storage_location" class="med-loc">
+              📍 {{ m.storage_location }}
+            </span>
+            <span class="med-member">{{ memberName(m) }}</span>
+          </div>
+          <p v-if="m.remark" class="med-remark">{{ m.remark }}</p>
+        </div>
+        <div class="med-actions">
+          <button
+            type="button"
+            class="btn btn-secondary btn-small"
+            @click="openEditModal(m)"
+          >
+            编辑
+          </button>
+          <button
+            type="button"
+            class="btn btn-danger btn-small"
+            @click="openDeleteModal(m)"
+          >
+            删除
+          </button>
+        </div>
+      </li>
+    </ul>
+
+    <!-- 创建/编辑 modal -->
+    <ModalOverlay
+      v-if="showFormModal"
+      :title="editingMedicine ? `编辑: ${editingMedicine.name}` : '添加药品'"
+      width="lg"
+      @close="closeFormModal"
+    >
+      <MedicineForm
+        :initial-values="editingMedicine"
+        :members="members"
+        :members-load-error="membersLoadError"
+        :disabled="isSaving"
+        @submit="handleSubmit"
+        @cancel="closeFormModal"
+      />
+      <p v-if="saveError" class="msg msg-error modal-save-error">
+        保存失败: {{ saveError }}
+      </p>
+    </ModalOverlay>
+
+    <!-- 删除确认 -->
+    <ConfirmDialog
+      v-if="deletingMedicine"
+      title="删除药品"
+      :message="`确认删除「${deletingMedicine.name}」?`"
+      detail="此操作不可撤销。"
+      confirm-text="删除"
+      danger
+      :loading="isDeleting"
+      :error-message="deleteError"
+      @confirm="handleDeleteConfirm"
+      @cancel="closeDeleteModal"
+    />
   </main>
 </template>
 
 <style scoped>
-.placeholder {
+.medicines-view {
   padding: 1.5rem;
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
 }
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+/* ===== Filters ===== */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.search-input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  background: white;
+  color: #1f2937;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: white;
+  color: #4b5563;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.filter-tab:hover {
+  background: #f9fafb;
+}
+
+.filter-tab.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: white;
+}
+
+.filter-tab.tab-soon:not(.active) {
+  border-color: #fbbf24;
+  color: #92400e;
+}
+
+.filter-tab.tab-expired:not(.active) {
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.tab-count {
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+/* ===== 状态提示 ===== */
 .hint {
-  color: #888;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+/* ===== 药品列表 ===== */
+.medicine-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.medicine-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.medicine-item.status-expired {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.medicine-item.status-soon {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.med-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.name-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.med-name {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.med-usage {
+  font-size: 0.82rem;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+.meta-row {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.status-expired .med-expiry {
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.status-soon .med-expiry {
+  color: #92400e;
+  font-weight: 600;
+}
+
+.med-remark {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #4b5563;
+}
+
+.med-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-small {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.btn-danger {
+  background: white;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #dc2626;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Messages ===== */
+.msg {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.msg-error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.modal-save-error {
+  margin-top: 1rem;
 }
 </style>

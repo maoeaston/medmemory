@@ -1,0 +1,344 @@
+<script setup lang="ts">
+// MedicineForm —— 药品创建/编辑表单
+// 参考 MemberForm 结构
+//
+// 双模式:
+//   - 创建: initialValues 不传, 提交 emit('submit', createInput)
+//   - 编辑: initialValues 传入, 提交 emit('submit', updateInput)
+//
+// 重要约束: MedicineUpdateInput = Partial<Omit<MedicineCreateInput, 'member_id'>>
+//   → member_id 创建后不可改。编辑模式下 select disabled。
+//
+// members 由父组件 (MedicinesView) 加载后传入, Form 自己不做 IO。
+import { reactive, ref, watch } from 'vue';
+import type {
+  FamilyMember,
+  Medicine,
+  MedicineCreateInput,
+  MedicineUpdateInput,
+} from '@/repositories';
+
+const props = defineProps<{
+  /** 编辑模式时传入已有药品; 创建模式不传 */
+  initialValues?: Medicine | null;
+  /** 家庭成员列表, 用于 member_id 下拉。父组件负责加载 */
+  members: FamilyMember[];
+  /** members 加载失败时传入错误文案, Form 显示提示但下拉仍可用 (只有"家庭共用") */
+  membersLoadError?: string | null;
+  disabled?: boolean;
+}>();
+
+const emit = defineEmits<{
+  submit: [input: MedicineCreateInput | MedicineUpdateInput];
+  cancel: [];
+}>();
+
+interface FormState {
+  name: string;
+  usage: string;
+  expiry_date: string; // YYYY-MM, 对应 input type="month"
+  storage_location: string;
+  member_id: number | null; // null = 家庭共用
+  remark: string;
+}
+
+function makeDefault(): FormState {
+  return {
+    name: '',
+    usage: '',
+    expiry_date: '',
+    storage_location: '',
+    member_id: null,
+    remark: '',
+  };
+}
+
+const form = reactive<FormState>(makeDefault());
+
+// 当 initialValues 变化 (打开 modal / 切换编辑对象) 时重置表单
+watch(
+  () => props.initialValues,
+  (val) => {
+    const next = makeDefault();
+    if (val) {
+      next.name = val.name;
+      next.usage = val.usage ?? '';
+      next.expiry_date = val.expiry_date ?? '';
+      next.storage_location = val.storage_location ?? '';
+      next.member_id = val.member_id;
+      next.remark = val.remark ?? '';
+    }
+    Object.assign(form, next);
+  },
+  { immediate: true },
+);
+
+const isEdit = () => props.initialValues !== null && props.initialValues !== undefined;
+
+function buildInput(): MedicineCreateInput | MedicineUpdateInput {
+  const trimmedName = form.name.trim();
+  if (!trimmedName) {
+    throw new Error('请填写药品名称');
+  }
+
+  if (isEdit()) {
+    // UpdateInput 不允许 member_id, 由类型保证
+    return {
+      name: trimmedName,
+      usage: form.usage.trim() || null,
+      expiry_date: form.expiry_date || null,
+      storage_location: form.storage_location.trim() || null,
+      remark: form.remark.trim() || null,
+    };
+  }
+
+  return {
+    name: trimmedName,
+    usage: form.usage.trim() || null,
+    expiry_date: form.expiry_date || null,
+    storage_location: form.storage_location.trim() || null,
+    member_id: form.member_id,
+    remark: form.remark.trim() || null,
+  };
+}
+
+const errorMsg = ref<string | null>(null);
+
+function handleSubmit(): void {
+  errorMsg.value = null;
+  try {
+    const input = buildInput();
+    emit('submit', input);
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+function handleCancel(): void {
+  emit('cancel');
+}
+</script>
+
+<template>
+  <form class="medicine-form" @submit.prevent="handleSubmit">
+    <div class="form-section">
+      <label class="form-row">
+        <span class="form-label">
+          药品名称 <span class="required">*</span>
+        </span>
+        <input
+          v-model="form.name"
+          type="text"
+          class="form-input"
+          placeholder="如: 美林布洛芬混悬液"
+          required
+          :disabled="props.disabled"
+        />
+      </label>
+
+      <label class="form-row">
+        <span class="form-label">用途</span>
+        <input
+          v-model="form.usage"
+          type="text"
+          class="form-input"
+          placeholder="如: 退烧 / 过敏 / 腹泻"
+          :disabled="props.disabled"
+        />
+      </label>
+
+      <label class="form-row">
+        <span class="form-label">到期日期</span>
+        <input
+          v-model="form.expiry_date"
+          type="month"
+          class="form-input"
+          :disabled="props.disabled"
+        />
+      </label>
+    </div>
+
+    <div class="form-section">
+      <label class="form-row">
+        <span class="form-label">归属成员</span>
+        <select
+          v-model="form.member_id"
+          class="form-input"
+          :disabled="props.disabled || isEdit()"
+        >
+          <option :value="null">家庭共用</option>
+          <option v-for="m in props.members" :key="m.id" :value="m.id">
+            {{ m.name }}
+          </option>
+        </select>
+        <small v-if="isEdit()" class="form-hint">
+          归属成员创建后不可更改
+        </small>
+        <small v-else-if="props.membersLoadError" class="form-hint form-hint-error">
+          成员列表加载失败 ({{ props.membersLoadError }}), 仅可选择"家庭共用"
+        </small>
+      </label>
+    </div>
+
+    <div class="form-section">
+      <label class="form-row">
+        <span class="form-label">存放位置</span>
+        <input
+          v-model="form.storage_location"
+          type="text"
+          class="form-input"
+          placeholder="如: 客厅药箱 / 冰箱上层"
+          :disabled="props.disabled"
+        />
+      </label>
+    </div>
+
+    <div class="form-section">
+      <label class="form-row">
+        <span class="form-label">备注</span>
+        <textarea
+          v-model="form.remark"
+          class="form-input"
+          rows="2"
+          placeholder="如: 每次 5ml, 6 小时一次 (可选)"
+          :disabled="props.disabled"
+        />
+      </label>
+    </div>
+
+    <p v-if="errorMsg" class="form-error">{{ errorMsg }}</p>
+
+    <div class="form-actions">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        :disabled="props.disabled"
+        @click="handleCancel"
+      >
+        取消
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        :disabled="props.disabled"
+      >
+        {{ isEdit() ? '保存修改' : '添加药品' }}
+      </button>
+    </div>
+  </form>
+</template>
+
+<style scoped>
+.medicine-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-label {
+  font-size: 0.85rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.required {
+  color: #dc2626;
+}
+
+.form-input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: white;
+  color: #1f2937;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.form-input:disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+textarea.form-input {
+  resize: vertical;
+  min-height: 3rem;
+}
+
+.form-hint {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+.form-hint-error {
+  color: #991b1b;
+}
+
+.form-error {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 4px;
+  font-size: 0.88rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn {
+  padding: 0.55rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+</style>
