@@ -1,20 +1,115 @@
 <script setup lang="ts">
-// MVP 骨架占位. 页面开发在 Repository/Storage/迁移层验证通过后进入.
+// MedMemory 主壳:
+//   - 顶部固定导航条（移动优先, 单行横向）
+//   - <router-view /> 承载各页面
+//
+// 导航顺序按使用频率: Dashboard / Inbox / **+Capture**（高亮）/ 成员 / 搜索 / 药箱 / 设置
+// +Capture 是 MVP 最高优先级入口, 视觉强化
 </script>
 
 <template>
-  <main class="placeholder">
-    <h1>家庭医疗记忆</h1>
-    <p>基础设施搭建中（Repository / Storage Adapter / sqlite-wasm+OPFS 验证）。</p>
-  </main>
+  <div class="app">
+    <header class="app-header">
+      <RouterLink to="/dashboard" class="brand">家庭医疗记忆</RouterLink>
+      <nav class="nav">
+        <RouterLink to="/dashboard" class="nav-link">首页</RouterLink>
+        <RouterLink to="/inbox" class="nav-link">待整理</RouterLink>
+        <RouterLink to="/capture" class="nav-link nav-cta">+ 记录</RouterLink>
+        <RouterLink to="/members" class="nav-link">成员</RouterLink>
+        <RouterLink to="/search" class="nav-link">搜索</RouterLink>
+        <RouterLink to="/medicines" class="nav-link">药箱</RouterLink>
+        <RouterLink to="/settings" class="nav-link">设置</RouterLink>
+      </nav>
+    </header>
+
+    <RouterView />
+  </div>
 </template>
 
+<style>
+/* 全局重置 + 基础排版 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1f2937;
+  background: #f9fafb;
+}
+</style>
+
 <style scoped>
-.placeholder {
-  font-family: system-ui, sans-serif;
-  max-width: 640px;
-  margin: 4rem auto;
-  padding: 0 1.5rem;
-  color: #333;
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #1f2937;
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nav-link {
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #4b5563;
+  font-size: 0.92rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-link:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.nav-link.router-link-active {
+  background: #e0e7ff;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+/* + 记录 按钮视觉强化（PRD 7.1: 比 "+ New Event" 更显眼） */
+.nav-cta {
+  background: #2563eb;
+  color: white !important;
+  font-weight: 600;
+}
+
+.nav-cta:hover {
+  background: #1d4ed8;
+  color: white !important;
+}
+
+.nav-cta.router-link-active {
+  background: #1e40af;
+  color: white !important;
 }
 </style>
