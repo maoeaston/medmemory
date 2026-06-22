@@ -1,21 +1,153 @@
 <script setup lang="ts">
-// MVP 骨架占位 —— Quick Capture 完整 UI 见 task #17 实现
+// CaptureView —— Quick Capture 容器（PRD 7.1）
+//
+// 顶部三段 segmented control 切换 photo / voice / text
+// <KeepAlive> 保留未保存输入, 避免误切 tab 丢失
+//
+// MVP 当前实现:
+//   - Text 完整可用（TextCapture.vue）
+//   - Photo / Voice 建设中（后续 task 实现）, tab 显示但内容是占位
+import { ref } from 'vue';
+import TextCapture from '@/components/capture/TextCapture.vue';
+
+type CaptureTab = 'photo' | 'voice' | 'text';
+const activeTab = ref<CaptureTab>('text');
+const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[] = [
+  { id: 'photo', label: '拍照', icon: '📷', available: false },
+  { id: 'voice', label: '录音', icon: '🎤', available: false },
+  { id: 'text', label: '文字', icon: '✍️', available: true },
+];
 </script>
 
 <template>
-  <main class="placeholder">
-    <h1>快速记录</h1>
-    <p class="hint">Quick Capture 三入口（photo/voice/text）即将实现。</p>
+  <main class="capture">
+    <h1 class="title">快速记录</h1>
+    <p class="hint">不要求填完整, 先抓拍下来。后续在"待整理"里归档成正式医疗事件。</p>
+
+    <nav class="tabs" role="tablist">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === tab.id"
+        :class="['tab', { active: activeTab === tab.id, disabled: !tab.available }]"
+        :disabled="!tab.available"
+        @click="activeTab = tab.id"
+      >
+        <span class="tab-icon">{{ tab.icon }}</span>
+        <span class="tab-label">{{ tab.label }}</span>
+        <span v-if="!tab.available" class="tab-wip">建设中</span>
+      </button>
+    </nav>
+
+    <div class="tab-panel">
+      <KeepAlive>
+        <TextCapture v-if="activeTab === 'text'" />
+        <div v-else-if="activeTab === 'photo'" class="wip-panel">
+          <p>📷 拍照入口建设中（task #18）</p>
+          <p class="wip-hint">将支持调起摄像头连拍检查报告 / 化验单 / 药盒。</p>
+        </div>
+        <div v-else-if="activeTab === 'voice'" class="wip-panel">
+          <p>🎤 录音入口建设中（task #16）</p>
+          <p class="wip-hint">将支持快捷语音备忘（例:"昨晚孩子 39 度, 吃了美林退到 37.5"）。</p>
+        </div>
+      </KeepAlive>
+    </div>
   </main>
 </template>
 
 <style scoped>
-.placeholder {
+.capture {
   padding: 1.5rem;
   max-width: 640px;
   margin: 0 auto;
 }
+
+.title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
 .hint {
-  color: #888;
+  margin: 0 0 1.5rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tab {
+  flex: 1;
+  padding: 0.75rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  color: #6b7280;
+  font-size: 0.9rem;
+  transition: color 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.tab:hover:not(.disabled):not(.active) {
+  color: #1f2937;
+}
+
+.tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
+}
+
+.tab.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.tab-icon {
+  font-size: 1.4rem;
+}
+
+.tab-label {
+  font-size: 0.9rem;
+}
+
+.tab-wip {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  background: #f3f4f6;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+}
+
+.tab-panel {
+  min-height: 200px;
+}
+
+.wip-panel {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: #6b7280;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.wip-hint {
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  color: #9ca3af;
 }
 </style>
