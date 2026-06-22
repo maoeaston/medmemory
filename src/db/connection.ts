@@ -61,6 +61,27 @@ interface ExecResponse {
   dbId: string;
 }
 
+/** promiser('export', ...) 返回的 result 部分 */
+interface ExportResult {
+  /** 整个数据库文件的字节序列 */
+  byteArray: Uint8Array;
+  filename: string;
+  mimetype: 'application/x-sqlite3';
+}
+
+/** promiser('export', ...) 返回的完整 response */
+interface ExportResponse {
+  type: 'export';
+  result: ExportResult;
+  dbId: string;
+}
+
+/** promiser('close', ...) 的 args（支持 unlink 删除 OPFS 文件） */
+interface CloseArgs {
+  /** 若 truthy, 关闭后从 OPFS 删除数据库文件 */
+  unlink?: boolean;
+}
+
 /** promiser 函数的调用签名 */
 interface PromiserFn {
   (type: 'open', args: { filename: string }): Promise<{
@@ -69,7 +90,8 @@ interface PromiserFn {
     dbId: string;
   }>;
   (type: 'exec', args: ExecArgs | string): Promise<ExecResponse>;
-  (type: 'close', args?: { unlink?: boolean }): Promise<{
+  (type: 'export', args?: Record<string, never>): Promise<ExportResponse>;
+  (type: 'close', args?: CloseArgs): Promise<{
     type: 'close';
     result: { filename?: string };
   }>;
@@ -209,6 +231,8 @@ async function openDatabase(promiser: PromiserFn): Promise<string> {
 export interface DbHandle {
   /** promiser 函数，用于 exec / close 等 Worker1 命令 */
   exec: (sql: string, args?: Omit<ExecArgs, 'sql'>) => Promise<ExecResponse>;
+  /** 导出整个数据库为 Uint8Array（Worker1 'export' 命令） */
+  exportBytes: () => Promise<Uint8Array>;
   /** 当前 dbId（Worker1 内部数据库标识） */
   readonly dbId: string;
   /** 是否走 OPFS 持久化 */
@@ -283,6 +307,10 @@ function wrapHandle(promiser: PromiserFn, dbId: string): DbHandle {
       const fullArgs: ExecArgs = { sql, ...args };
       return promiser('exec', fullArgs);
     },
+    exportBytes: async () => {
+      const resp = await promiser('export', {});
+      return resp.result.byteArray;
+    },
   };
 }
 
@@ -293,14 +321,16 @@ function wrapHandle(promiser: PromiserFn, dbId: string): DbHandle {
 /**
  * 关闭当前数据库连接并重置单例状态。
  * PoC 和测试场景用；生产代码一般不调用。
+ *
+ * @param options.unlink 若 true, 关闭后从 OPFS 删除数据库文件（用于"重置数据库"）
  */
-export async function closeDb(): Promise<void> {
+export async function closeDb(options?: { unlink?: boolean }): Promise<void> {
   if (promiserInstance === null || activeDbId === null) {
     return;
   }
 
   try {
-    await promiserInstance('close');
+    await promiserInstance('close', options);
   } catch (err) {
     throw new SqliteConnectionError('close', '关闭数据库失败', err);
   } finally {
