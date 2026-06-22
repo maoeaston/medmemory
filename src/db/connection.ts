@@ -22,6 +22,7 @@ import { sqlite3Worker1Promiser } from '@sqlite.org/sqlite-wasm';
 // schema 文件用 Vite ?raw 后缀以字符串形式 import（编译期内联，无运行时 fetch）
 // @/../ 跳出 src 是因为 migrations 在项目根 db/ 下，不属于 src 树；路径别名 @ 只映射 src/
 import schemaSql from '@/../db/migrations/001_initial.sql?raw';
+import schema2Sql from '@/../db/migrations/002_lab_indicators.sql?raw';
 
 // ============================================================
 // 类型定义
@@ -225,24 +226,20 @@ async function openDatabase(promiser: PromiserFn): Promise<string> {
 // ============================================================
 
 /**
- * 当前 schema 目标版本。新增 migration 时递增。
- * 对应 db/migrations/001_initial.sql 的 "001" + schema_migrations.version.
- */
-const SCHEMA_TARGET_VERSION = 1;
-
-/**
  * 首次打开数据库后自动跑 schema migration。
  *
  * 流程:
  *   1. 保底建 schema_migrations 表（全新库时此表不存在, 不建的话 SELECT 会抛错）
  *   2. SELECT 当前 version
- *   3. 若 version < target, exec 完整 001_initial.sql（本身幂等: 所有 CREATE TABLE/INDEX
- *      带 IF NOT EXISTS, INSERT INTO schema_migrations 用 INSERT OR IGNORE）
+ *   3. 顺序执行所有 currentVersion < N 的 migration 文件:
+ *      - v1 (001_initial.sql): 全量建表
+ *      - v2 (002_lab_indicators.sql): 化验单结构化表
+ *   每个 migration 文件本身幂等 (IF NOT EXISTS / INSERT OR IGNORE), 重跑安全
  *
  * 幂等性保证:
- *   - 老用户（PoC 时代 exec 过 schema）: schema_migrations.version=1, SELECT 命中, 跳过 exec
- *   - 新用户: schema_migrations 空表, currentVersion=0, 跑 schemaSql 建表 + 写 version=1
- *   - 后续新增 002+ migration: 加版本判断分支即可, 架构已就位
+ *   - 老用户 v1: currentVersion=1, 跑 002, 写 version=2
+ *   - 全新用户: currentVersion=0, 跑 001 + 002, 写 version=1, 2
+ *   - 已 v2 用户: 跳过
  *
  * @throws SqliteConnectionError phase='migration' 当 schema SQL 执行失败
  */
@@ -282,20 +279,32 @@ async function runMigrations(promiser: PromiserFn): Promise<void> {
     );
   }
 
-  // Step 3: 缺目标版本则跑 schema
-  if (currentVersion >= SCHEMA_TARGET_VERSION) {
-    return;
+  // Step 3: 顺序执行未应用的 migration
+  if (currentVersion < 1) {
+    try {
+      await promiser('exec', { sql: schemaSql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v1 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
   }
 
-  try {
-    await promiser('exec', { sql: schemaSql });
-  } catch (err) {
-    throw new SqliteConnectionError(
-      'migration',
-      `Schema migration 到 version ${SCHEMA_TARGET_VERSION} 失败（当前 version=${currentVersion}）`,
-      err,
-    );
+  if (currentVersion < 2) {
+    try {
+      await promiser('exec', { sql: schema2Sql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v2 (report_indicators) 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
   }
+
+  // 后续新增 003+ migration 在此追加 if currentVersion < 3 { ... }
 }
 
 // ============================================================

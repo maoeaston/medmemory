@@ -18,6 +18,7 @@ import { HealthProblemRepositoryImpl } from '@/repositories/healthProblemReposit
 import { InboxRepositoryImpl } from '@/repositories/inboxRepository';
 import { MedicalEventRepositoryImpl } from '@/repositories/medicalEventRepository';
 import { MedicineRepositoryImpl } from '@/repositories/medicineRepository';
+import { ReportIndicatorRepositoryImpl } from '@/repositories/reportIndicatorRepository';
 import { SearchRepositoryImpl } from '@/repositories/searchRepository';
 
 /**
@@ -32,6 +33,7 @@ export interface Repositories {
   eventProblemRel: InstanceType<typeof EventProblemRelRepositoryImpl>;
   attachment: InstanceType<typeof AttachmentRepositoryImpl>;
   aiContent: InstanceType<typeof AiContentRepositoryImpl>;
+  reportIndicator: InstanceType<typeof ReportIndicatorRepositoryImpl>;
   medicine: InstanceType<typeof MedicineRepositoryImpl>;
   search: InstanceType<typeof SearchRepositoryImpl>;
 }
@@ -58,6 +60,7 @@ export async function createRepositories(): Promise<Repositories> {
     eventProblemRel: new EventProblemRelRepositoryImpl(db),
     attachment: new AttachmentRepositoryImpl(db),
     aiContent: new AiContentRepositoryImpl(db),
+    reportIndicator: new ReportIndicatorRepositoryImpl(db),
     medicine: new MedicineRepositoryImpl(db),
     search: new SearchRepositoryImpl(db),
   };
@@ -73,6 +76,7 @@ export {
   InboxRepositoryImpl,
   MedicalEventRepositoryImpl,
   MedicineRepositoryImpl,
+  ReportIndicatorRepositoryImpl,
   SearchRepositoryImpl,
 };
 
@@ -101,6 +105,8 @@ export type {
   InboxItem,
   InboxItemCreateInput,
   InboxRepository,
+  LabIndicator,
+  LabIndicatorCreateInput,
   MedicalEvent,
   MedicalEventCreateInput,
   MedicalEventRepository,
@@ -110,6 +116,7 @@ export type {
   MedicineRepository,
   MedicineUpdateInput,
   ProcessingStatus,
+  ReportIndicatorRepository,
   SearchFilter,
   SearchRepository,
   SearchResult,

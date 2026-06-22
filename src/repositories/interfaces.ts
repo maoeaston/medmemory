@@ -142,6 +142,32 @@ export interface AiContent {
   created_at: string;
 }
 
+/**
+ * 化验单指标 (report_indicators 表, v2 新增)。
+ * 一份化验单 attachment → N 条 LabIndicator, display_order 保留原报告顺序。
+ */
+export interface LabIndicator {
+  id: number;
+  attachment_id: number;
+  /** 项目中文名 (白细胞计数) */
+  name_cn: string;
+  /** 英文缩写 (WBC), 可空 */
+  name_en: string | null;
+  /** 测定值, 字符串原样 (9.5 / 阴性 / 1:80) */
+  result: string;
+  /** 单位 (10^9/L), 可空 */
+  unit: string | null;
+  /** 参考范围 (4.0-10.0 / <5.0), 可空 */
+  reference_range: string | null;
+  /** H 偏高 / L 偏低 / N 正常 / null 无参考范围或无法判断 */
+  abnormal_tag: 'H' | 'L' | 'N' | null;
+  /** 报告内顺序 (top→bottom), 用于 UI 稳定渲染 */
+  display_order: number;
+  model: string;
+  prompt_version: string;
+  created_at: string;
+}
+
 export interface Medicine {
   id: number;
   name: string;
@@ -202,6 +228,13 @@ export type AiContentCreateInput = Pick<
   AiContent,
   'attachment_id' | 'content_type' | 'model' | 'prompt_version' | 'content'
 >;
+
+export type LabIndicatorCreateInput = Omit<
+  LabIndicator,
+  'id' | 'attachment_id' | 'created_at'
+> & {
+  // attachment_id 由 createBatch(attachmentId, ...) 提供, 不在单条 input 内
+};
 
 export type MedicineCreateInput = Omit<
   Medicine,
@@ -329,6 +362,16 @@ export interface AttachmentRepository {
   /** ADR-004: 按 storage_key 反查（导入/校验/迁移场景） */
   getByStorageKey(storageKey: string): Promise<Attachment | null>;
   updateTags(id: number, tags: string[]): Promise<Attachment>;
+  /**
+   * 更新 doc_type (和可选 subtype)。
+   * 用户在 UI 兜底纠正 LLM 判型时用; 也用于 AI 处理完成后回写判型结果。
+   * doc_type=null 表示清除分类。
+   */
+  updateDocType(
+    id: number,
+    docType: DocType | null,
+    subtype?: string | null,
+  ): Promise<Attachment>;
   /** 状态机推进（PRD 7.5）: FAILED 时传 processingError */
   updateProcessingStatus(
     id: number,
@@ -345,6 +388,12 @@ export interface AttachmentRepository {
     memberId: number,
     filter: { docType?: DocType; subtype?: string }
   ): Promise<Attachment | null>;
+
+  /**
+   * AI 处理待办: 所有 processing_status 为 UPLOADED（未处理）或 FAILED（可重试）的附件。
+   * Settings 页"批量处理"入口消费; 排序 created_at ASC（早者优先, 旧数据先 backfill）。
+   */
+  listPendingAi(): Promise<Attachment[]>;
 }
 
 // ============================================================
@@ -366,6 +415,31 @@ export interface AiContentRepository {
     contentType?: AiContentType
   ): Promise<AiContent[]>;
   delete(id: number): Promise<void>;
+}
+
+// ============================================================
+// 7b. ReportIndicatorRepository
+// 对应 PRD 7.6 v2: 化验单结构化提取 (lab_report 专属)
+// 一份化验单 attachment → N 条指标, 整批写入/整批替换
+// 不做多版本: 重新生成 = DELETE WHERE attachment_id + INSERT 新批
+//   (多版本语义在 ai_contents.summary/ocr_fulltext 已有; 指标是数组, 版本管理复杂度收益低)
+// ============================================================
+export interface ReportIndicatorRepository {
+  /**
+   * 批量写入某 attachment 的全部指标。
+   * 调用前应用层应先调 deleteByAttachment 清空旧数据 (重新生成场景)。
+   * display_order 必须在 input 数组顺序中已排好。
+   */
+  createBatch(
+    attachmentId: number,
+    indicators: LabIndicatorCreateInput[],
+  ): Promise<LabIndicator[]>;
+
+  /** 取某 attachment 的指标集, 按 display_order ASC */
+  listByAttachment(attachmentId: number): Promise<LabIndicator[]>;
+
+  /** 重新生成前清空 (整批替换语义) */
+  deleteByAttachment(attachmentId: number): Promise<void>;
 }
 
 // ============================================================

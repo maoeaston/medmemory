@@ -144,6 +144,28 @@ export class AttachmentRepositoryImpl implements AttachmentRepository {
     return updated;
   }
 
+  async updateDocType(
+    id: number,
+    docType: DocType | null,
+    subtype?: string | null,
+  ): Promise<Attachment> {
+    // subtype 未传 (undefined) → 保留原值; 显式 null → 清空
+    const includeSubtype = subtype !== undefined;
+    const sql = includeSubtype
+      ? `UPDATE attachments SET doc_type = ?, subtype = ? WHERE id = ?`
+      : `UPDATE attachments SET doc_type = ? WHERE id = ?`;
+    const bind = includeSubtype ? [docType, subtype, id] : [docType, id];
+    const changes = await executeWrite(this.db, sql, bind, 'update');
+    if (changes === 0) {
+      throw new RepositoryError('not-found', TABLE, `id=${id} 不存在`);
+    }
+    const updated = await this.getById(id);
+    if (updated === null) {
+      throw new RepositoryError('not-found', TABLE, `id=${id} UPDATE 后未查到`);
+    }
+    return updated;
+  }
+
   async updateProcessingStatus(
     id: number,
     status: ProcessingStatus,
@@ -210,5 +232,19 @@ export class AttachmentRepositoryImpl implements AttachmentRepository {
       bind,
     );
     return row ? toEntity(row) : null;
+  }
+
+  async listPendingAi(): Promise<Attachment[]> {
+    // 处理待办: UPLOADED (从未处理) + FAILED (可重试). 按 created_at ASC 早者优先.
+    // 不含 OCR_PROCESSING (理论上不应出现在待办列表, 即使卡死也由用户手动重试).
+    // 不含 OCR_DONE / SUMMARY_DONE (已完成).
+    const rows = await selectMany<AttachmentRow>(
+      this.db,
+      `SELECT * FROM attachments
+        WHERE processing_status IN ('UPLOADED', 'FAILED')
+        ORDER BY created_at ASC`,
+      [],
+    );
+    return rows.map(toEntity);
   }
 }

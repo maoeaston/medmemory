@@ -1,14 +1,16 @@
 <script setup lang="ts">
-// SettingsView —— 数据备份 / 恢复 / 重置
+// SettingsView —— 数据备份 / 恢复 / 重置 + AI 处理配置 / 批量处理
 //
-// 三个 section, 各自独立 loading/error 状态:
+// 五个 section, 各自独立 loading/error 状态:
 //   § 数据备份: 导出 zip（含 sqlite + 所有附件 Blob）
 //   § 数据恢复: 从 zip 覆盖导入（会清掉不在 zip 中的孤儿 Blob）
+//   § AI 处理配置: OpenAI API key 输入（localStorage 主存 + env 默认）
+//   § 批量处理附件: 对 UPLOADED/FAILED 附件批量跑 AI 处理
 //   § 重置数据库: 两道确认（第一 dialog + 第二 dialog 输入"我确认删除"）
 //
 // 导入/重置成功后 location.reload(): 最稳的清理方式, 绕过组件 ref 残留。
 // 导出不 reload（没改数据）。
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   exportAllData,
   importAllData,
@@ -18,6 +20,10 @@ import {
   type ImportProgress,
   type ImportSummary,
 } from '@/composables/useDataBackup';
+import { useAiConfig } from '@/composables/useAiConfig';
+import { useAiProcess } from '@/composables/useAiProcess';
+import { useRepositories } from '@/composables/useRepositories';
+import type { Attachment } from '@/repositories';
 import ModalOverlay from '@/components/ui/ModalOverlay.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 
@@ -204,6 +210,85 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
+
+// ============================================================
+// AI 处理配置 (API key)
+// ============================================================
+const { apiKey, hasKey, saveKey } = useAiConfig();
+const apiKeyInput = ref(apiKey.value);
+const showApiKey = ref(false);
+const apiKeySavedFlash = ref(false); // "已保存" 2s 反馈
+
+const usingEnvFallback = computed(
+  () => !localStorage.getItem('medmemory:openaiApiKey') && hasKey.value,
+);
+
+function handleSaveApiKey(): void {
+  saveKey(apiKeyInput.value);
+  apiKeySavedFlash.value = true;
+  setTimeout(() => {
+    apiKeySavedFlash.value = false;
+  }, 2000);
+}
+
+function handleClearApiKey(): void {
+  apiKeyInput.value = '';
+  saveKey('');
+}
+
+// ============================================================
+// 批量处理附件
+// ============================================================
+const pendingAttachments = ref<Attachment[]>([]);
+const pendingLoadError = ref<string | null>(null);
+const isPendingLoading = ref(false);
+
+const {
+  isProcessing: isBatchProcessing,
+  batchProgress,
+  processBatch,
+} = useAiProcess();
+const batchError = ref<string | null>(null);
+const batchComplete = ref<{ successCount: number; failureCount: number } | null>(
+  null,
+);
+
+async function refreshPending(): Promise<void> {
+  isPendingLoading.value = true;
+  pendingLoadError.value = null;
+  try {
+    const repos = await useRepositories();
+    pendingAttachments.value = await repos.attachment.listPendingAi();
+  } catch (e) {
+    pendingLoadError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    isPendingLoading.value = false;
+  }
+}
+
+async function handleBatchProcess(): Promise<void> {
+  if (pendingAttachments.value.length === 0 || !hasKey.value) return;
+  batchError.value = null;
+  batchComplete.value = null;
+  const ids = pendingAttachments.value.map((a) => a.id);
+  try {
+    const result = await processBatch(ids);
+    batchComplete.value = result;
+    await refreshPending();
+  } catch (e) {
+    batchError.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+const batchProgressText = computed(() => {
+  const p = batchProgress.value;
+  if (p === null) return '';
+  return `处理中 ${p.current} / ${p.total} (成功 ${p.successCount}, 失败 ${p.failureCount})`;
+});
+
+onMounted(() => {
+  void refreshPending();
+});
 </script>
 
 <template>
@@ -283,6 +368,134 @@ function formatSize(bytes: number): string {
         清理 {{ importSummary.blobDeletedOrphans }} 个孤儿附件,
         数据库 {{ formatSize(importSummary.sqliteBytes) }}。正在重载...
       </p>
+    </section>
+
+    <!-- § AI 处理配置 -->
+    <section class="settings-section">
+      <h2 class="section-title">AI 处理配置</h2>
+      <p class="section-desc">
+        配置 OpenAI API key 后, 归档照片附件会自动调用 GPT-4o 产出摘要 + OCR 全文 + 标签,
+        解锁关键词搜索功能。Key 存在浏览器 localStorage, 自用场景已接受明文存储。
+      </p>
+
+      <div class="api-key-row">
+        <input
+          v-model="apiKeyInput"
+          :type="showApiKey ? 'text' : 'password'"
+          class="api-key-input"
+          placeholder="sk-..."
+          autocomplete="off"
+          spellcheck="false"
+          :disabled="isBatchProcessing"
+        />
+        <button
+          type="button"
+          class="btn btn-secondary"
+          @click="showApiKey = !showApiKey"
+        >{{ showApiKey ? '隐藏' : '显示' }}</button>
+      </div>
+
+      <div class="action-row">
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="isBatchProcessing"
+          @click="handleSaveApiKey"
+        >保存 API key</button>
+        <button
+          v-if="hasKey"
+          type="button"
+          class="btn btn-secondary"
+          :disabled="isBatchProcessing"
+          @click="handleClearApiKey"
+        >清除</button>
+        <span v-if="apiKeySavedFlash" class="saved-flash">✓ 已保存</span>
+      </div>
+
+      <p v-if="usingEnvFallback" class="msg msg-info">
+        当前使用 .env 默认 key。保存后会覆盖为输入框中的值。
+      </p>
+      <p v-else-if="hasKey" class="msg msg-success">
+        ✓ 已配置 API key（保存在 localStorage）。
+      </p>
+      <p v-else class="msg msg-info">
+        未配置 API key。归档时附件会保持"待处理"状态, 配置后可手动或批量处理。
+      </p>
+    </section>
+
+    <!-- § 批量处理附件 -->
+    <section class="settings-section">
+      <h2 class="section-title">批量处理附件</h2>
+      <p class="section-desc">
+        对所有"待处理"或"处理失败"的附件批量执行 AI 处理。顺序执行避免触发 OpenAI 限流,
+        单个失败不中断。
+      </p>
+
+      <div class="action-row">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          :disabled="isPendingLoading || isBatchProcessing"
+          @click="refreshPending"
+        >刷新列表</button>
+        <span v-if="isPendingLoading" class="progress-text">加载中...</span>
+        <span v-else-if="pendingAttachments.length > 0" class="pending-count">
+          {{ pendingAttachments.length }} 个待处理附件
+        </span>
+        <span v-else-if="!pendingLoadError" class="progress-text">
+          没有待处理附件
+        </span>
+      </div>
+
+      <p v-if="pendingLoadError" class="msg msg-error">
+        加载失败: {{ pendingLoadError }}
+      </p>
+
+      <div
+        v-if="pendingAttachments.length > 0"
+        class="action-row batch-action-row"
+      >
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="!hasKey || isBatchProcessing"
+          @click="handleBatchProcess"
+        >
+          {{ isBatchProcessing ? '处理中...' : `开始处理 ${pendingAttachments.length} 个` }}
+        </button>
+        <span v-if="isBatchProcessing" class="progress-text">
+          {{ batchProgressText }}
+        </span>
+        <span v-if="!hasKey" class="progress-text warn">
+          请先在上方配置 API key
+        </span>
+      </div>
+
+      <p v-if="batchError" class="msg msg-error">批量处理出错: {{ batchError }}</p>
+      <p
+        v-if="batchComplete"
+        class="msg"
+        :class="batchComplete.failureCount > 0 ? 'msg-warn' : 'msg-success'"
+      >
+        批量处理完成: 成功 {{ batchComplete.successCount }} 个,
+        失败 {{ batchComplete.failureCount }} 个。
+      </p>
+
+      <details v-if="pendingAttachments.length > 0" class="pending-list">
+        <summary>查看待处理列表</summary>
+        <ul>
+          <li v-for="att in pendingAttachments" :key="att.id">
+            <span class="pending-id">#{{ att.id }}</span>
+            <span class="pending-name">{{ att.file_name }}</span>
+            <span
+              class="pending-status"
+              :class="att.processing_status === 'FAILED' ? 'status-failed' : 'status-uploaded'"
+            >
+              {{ att.processing_status === 'FAILED' ? '失败' : '待处理' }}
+            </span>
+          </li>
+        </ul>
+      </details>
     </section>
 
     <!-- § 重置数据库 -->
@@ -568,5 +781,121 @@ function formatSize(bytes: number): string {
 .reset-input:disabled {
   background: #f9fafb;
   cursor: not-allowed;
+}
+
+/* === AI 配置 === */
+.api-key-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.api-key-input {
+  flex: 1;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  background: white;
+  color: #1f2937;
+}
+
+.api-key-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.api-key-input:disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.saved-flash {
+  font-size: 0.85rem;
+  color: #065f46;
+  font-weight: 500;
+}
+
+.msg-info {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.msg-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* === 批量处理 === */
+.batch-action-row {
+  margin-top: 0.3rem;
+}
+
+.pending-count {
+  font-size: 0.88rem;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.pending-list {
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.pending-list summary {
+  cursor: pointer;
+  color: #2563eb;
+  padding: 0.3rem 0;
+}
+
+.pending-list summary:hover {
+  text-decoration: underline;
+}
+
+.pending-list ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1rem;
+  list-style: none;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.pending-list li {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.pending-id {
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5rem;
+}
+
+.pending-name {
+  flex: 1;
+  color: #4b5563;
+  word-break: break-all;
+}
+
+.pending-status {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.status-uploaded {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
 }
 </style>

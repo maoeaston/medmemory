@@ -17,7 +17,9 @@
 
 import { IndexedDbStorageAdapter } from '@/storage/IndexedDbStorageAdapter';
 import { generateStorageKey } from '@/storage/keys';
+import { useAiConfig } from '@/composables/useAiConfig';
 import type {
+  Attachment,
   InboxItem,
   MedicalEventCreateInput,
 } from '@/repositories';
@@ -70,16 +72,18 @@ export async function archiveInboxItems(
 
   // 2. 逐条处理 inbox_item, 失败不中断
   const failures: ArchiveFailure[] = [];
+  const createdAttachments: Attachment[] = [];
   let successCount = 0;
 
   for (const item of input.items) {
     try {
       if (item.capture_type === 'photo' && item.storage_key !== null) {
-        await migratePhotoAttachment(repos, storage, {
+        const attachment = await migratePhotoAttachment(repos, storage, {
           inboxStorageKey: item.storage_key,
           memberId: event.member_id,
           eventId: event.id,
         });
+        createdAttachments.push(attachment);
       }
       // voice / text: 不创建 attachment, 仅 archive 标记
       // photo: attachment 已创建, 现在 archive inbox_item
@@ -91,6 +95,12 @@ export async function archiveInboxItems(
         error: e instanceof Error ? e.message : String(e),
       });
     }
+  }
+
+  // 3. 对新建的 photo 附件 fire-and-forget 触发 AI 处理（仅当已配置 API key）
+  // 失败仅 console, 不算 archive 失败（用户在事件详情页看到 FAILED 可手动重试）
+  if (createdAttachments.length > 0) {
+    void triggerAiProcessingInBackground(createdAttachments);
   }
 
   return { eventId: event.id, successCount, failures };
@@ -114,6 +124,8 @@ export async function archiveInboxItems(
  *
  * file_type 推断: schema CHECK ('jpg','png','pdf'); photo 只能 jpg/png,
  * 从 storage_key 后缀取（PhotoCapture 保证）。其他后缀兜底为 jpg。
+ *
+ * 返回新建的 Attachment（archiveInboxItems 用其 id 触发 AI 处理）。
  */
 async function migratePhotoAttachment(
   repos: Repositories,
@@ -123,7 +135,7 @@ async function migratePhotoAttachment(
     memberId: number;
     eventId: number;
   },
-): Promise<void> {
+): Promise<Attachment> {
   const fileExt = inferPhotoExt(args.inboxStorageKey);
 
   // 1. 读原件
@@ -143,8 +155,9 @@ async function migratePhotoAttachment(
   await storage.saveFile(newKey, blob);
 
   // 4. 写 attachment metadata（失败回滚 Blob）
+  let attachment: Attachment;
   try {
-    await repos.attachment.create({
+    attachment = await repos.attachment.create({
       event_id: args.eventId,
       file_name:
         args.inboxStorageKey.split('/').pop() ?? `photo.${fileExt}`,
@@ -167,6 +180,39 @@ async function migratePhotoAttachment(
     // 旧 Blob 删除失败不影响归档成功性, swallow
     // 双 Blob 共存不破坏数据一致性, 后续 StorageGC 清理
   });
+
+  return attachment;
+}
+
+/**
+ * 后台触发 AI 处理（fire-and-forget）。
+ *
+ * 调用时机: archiveInboxItems 成功创建 photo attachments 后, 不阻塞归档返回。
+ * 失败处理: 仅 console.error, 用户的 UI 反馈在事件详情页看 attachment.processing_status=FAILED。
+ *
+ * 未配置 API key 时静默跳过（attachment 留 UPLOADED 状态, 用户后续可手动处理）。
+ *
+ * 动态 import useAiProcess: 避免顶层 import 形成 useInboxArchive ↔ useAiProcess 循环
+ * （useAiProcess 不 import useInboxArchive, 但 dynamic import 让依赖关系更清晰）
+ */
+async function triggerAiProcessingInBackground(
+  attachments: Attachment[],
+): Promise<void> {
+  const { hasKey } = useAiConfig();
+  if (!hasKey.value) return;
+
+  const { useAiProcess } = await import('@/composables/useAiProcess');
+  for (const att of attachments) {
+    // 不 await: 每个 attachment 独立 fire-and-forget, 失败不阻塞下一个
+    useAiProcess()
+      .processAttachment(att.id)
+      .catch((e) => {
+        console.error(
+          `[archive] 后台 AI 处理失败 attachment=${att.id}:`,
+          e,
+        );
+      });
+  }
 }
 
 /**
