@@ -86,6 +86,39 @@ const contentLoadError = ref<string | null>(null);
 const isLoadingContent = ref(false);
 const isExpanded = ref(false);
 
+// === AI 结果标签页: 摘要 / 检验指标 / OCR 全文 ===
+type AiTab = 'summary' | 'indicators' | 'ocr';
+const activeTab = ref<AiTab>('summary');
+
+const availableTabs = computed(() => {
+  const tabs: Array<{ key: AiTab; label: string; count?: number }> = [];
+  if (summaryContent.value) {
+    tabs.push({ key: 'summary', label: '摘要' });
+  }
+  if (labIndicators.value.length > 0) {
+    tabs.push({
+      key: 'indicators',
+      label: '检验指标',
+      count: labIndicators.value.length,
+    });
+  }
+  if (ocrContent.value) {
+    tabs.push({ key: 'ocr', label: 'OCR 全文' });
+  }
+  return tabs;
+});
+
+// activeTab 必须始终指向存在的 tab; 内容刷新后原 tab 失效则回退到第一个
+watch(
+  availableTabs,
+  (tabs) => {
+    if (tabs.length > 0 && !tabs.some((t) => t.key === activeTab.value)) {
+      activeTab.value = tabs[0].key;
+    }
+  },
+  { immediate: true },
+);
+
 // === doc_type 手动兜底 ===
 const isUpdatingDocType = ref(false);
 const docTypeError = ref<string | null>(null);
@@ -437,19 +470,30 @@ onUnmounted(() => {
             加载失败: {{ contentLoadError }}
           </p>
           <template v-else>
-            <section v-if="summaryContent" class="ai-block">
-              <h4 class="ai-block-title">摘要</h4>
+            <!-- 标签页导航 -->
+            <div v-if="availableTabs.length > 0" class="ai-tabs" role="tablist">
+              <button
+                v-for="tab in availableTabs"
+                :key="tab.key"
+                type="button"
+                role="tab"
+                :class="['ai-tab', { active: activeTab === tab.key }]"
+                :aria-selected="activeTab === tab.key"
+                @click="activeTab = tab.key"
+              >
+                {{ tab.label }}<span v-if="tab.count" class="ai-tab-count">{{ tab.count }}</span>
+              </button>
+            </div>
+
+            <section v-if="activeTab === 'summary' && summaryContent" class="ai-block">
               <p class="ai-block-text">{{ summaryContent }}</p>
             </section>
 
             <!-- 化验单指标表 (仅 doc_type=lab_report 且有数据时) -->
             <section
-              v-if="labIndicators.length > 0"
+              v-if="activeTab === 'indicators' && labIndicators.length > 0"
               class="ai-block indicator-block"
             >
-              <h4 class="ai-block-title">
-                检验指标 ({{ labIndicators.length }})
-              </h4>
               <div class="indicator-table-wrap">
                 <table class="indicator-table">
                   <thead>
@@ -490,10 +534,13 @@ onUnmounted(() => {
               </div>
             </section>
 
-            <section v-if="ocrContent" class="ai-block">
-              <h4 class="ai-block-title">OCR 全文</h4>
+            <section v-if="activeTab === 'ocr' && ocrContent" class="ai-block">
               <pre class="ai-block-ocr">{{ ocrContent }}</pre>
             </section>
+
+            <p v-if="availableTabs.length === 0" class="placeholder-msg">
+              AI 处理完成, 但未产出可显示内容
+            </p>
             <p v-if="aiModel" class="ai-model-tag">模型: {{ aiModel }}</p>
           </template>
         </div>
@@ -522,9 +569,9 @@ onUnmounted(() => {
 
 <style scoped>
 .attachment-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.4rem 0.75rem;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
@@ -532,11 +579,13 @@ onUnmounted(() => {
 }
 
 .photo-thumb {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 10rem;
+  height: 120px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
@@ -560,15 +609,17 @@ onUnmounted(() => {
 }
 
 .pdf-block {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 5rem;
+  min-height: 120px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
-  padding: 0.75rem;
+  padding: 0.5rem;
 }
 
 .pdf-link {
@@ -614,9 +665,12 @@ onUnmounted(() => {
 }
 
 .attachment-meta {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
 }
 
 .meta-filename {
@@ -670,6 +724,8 @@ onUnmounted(() => {
 
 /* === AI section === */
 .ai-section {
+  grid-column: 1 / -1;
+  grid-row: 2;
   border-top: 1px dashed #e5e7eb;
   padding-top: 0.5rem;
   display: flex;
@@ -785,6 +841,58 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+/* === AI 结果标签页 === */
+.ai-tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0.5rem;
+}
+
+.ai-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.35rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: #6b7280;
+  cursor: pointer;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ai-tab:hover {
+  color: #1f2937;
+}
+
+.ai-tab.active {
+  color: #1e40af;
+  border-bottom-color: #1e40af;
+  font-weight: 600;
+}
+
+.ai-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.1rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #4b5563;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.ai-tab.active .ai-tab-count {
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .ai-block-title {
