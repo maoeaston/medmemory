@@ -212,19 +212,32 @@ function formatSize(bytes: number): string {
 }
 
 // ============================================================
-// AI 处理配置 (API key)
+// AI 处理配置 (API key + Base URL + Model)
 // ============================================================
-const { apiKey, hasKey, saveKey } = useAiConfig();
+const {
+  apiKey,
+  baseUrl,
+  model,
+  hasKey,
+  saveApiKey,
+  saveBaseUrl,
+  saveModel,
+} = useAiConfig();
+
 const apiKeyInput = ref(apiKey.value);
+const baseUrlInput = ref(baseUrl.value);
+const modelInput = ref(model.value);
 const showApiKey = ref(false);
 const apiKeySavedFlash = ref(false); // "已保存" 2s 反馈
+const baseUrlSavedFlash = ref(false);
+const modelSavedFlash = ref(false);
 
 const usingEnvFallback = computed(
-  () => !localStorage.getItem('medmemory:openaiApiKey') && hasKey.value,
+  () => !localStorage.getItem('medmemory:aiApiKey') && hasKey.value,
 );
 
 function handleSaveApiKey(): void {
-  saveKey(apiKeyInput.value);
+  saveApiKey(apiKeyInput.value);
   apiKeySavedFlash.value = true;
   setTimeout(() => {
     apiKeySavedFlash.value = false;
@@ -233,7 +246,23 @@ function handleSaveApiKey(): void {
 
 function handleClearApiKey(): void {
   apiKeyInput.value = '';
-  saveKey('');
+  saveApiKey('');
+}
+
+function handleSaveBaseUrl(): void {
+  saveBaseUrl(baseUrlInput.value);
+  baseUrlSavedFlash.value = true;
+  setTimeout(() => {
+    baseUrlSavedFlash.value = false;
+  }, 2000);
+}
+
+function handleSaveModel(): void {
+  saveModel(modelInput.value);
+  modelSavedFlash.value = true;
+  setTimeout(() => {
+    modelSavedFlash.value = false;
+  }, 2000);
 }
 
 // ============================================================
@@ -374,53 +403,111 @@ onMounted(() => {
     <section class="settings-section">
       <h2 class="section-title">AI 处理配置</h2>
       <p class="section-desc">
-        配置 OpenAI API key 后, 归档照片附件会自动调用 GPT-4o 产出摘要 + OCR 全文 + 标签,
-        解锁关键词搜索功能。Key 存在浏览器 localStorage, 自用场景已接受明文存储。
+        支持 OpenAI 兼容协议（官方 / 中转站 / 本地部署）。
+        归档照片附件会自动调用模型产出摘要 + OCR 全文 + 标签 + 化验单指标,
+        解锁关键词搜索功能。配置存在浏览器 localStorage, 自用场景已接受明文存储。
       </p>
 
-      <div class="api-key-row">
+      <!-- API Key -->
+      <div class="config-row">
+        <label class="config-label">API Key</label>
+        <div class="api-key-row">
+          <input
+            v-model="apiKeyInput"
+            :type="showApiKey ? 'text' : 'password'"
+            class="api-key-input"
+            placeholder="sk-..."
+            autocomplete="off"
+            spellcheck="false"
+            :disabled="isBatchProcessing"
+          />
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="showApiKey = !showApiKey"
+          >{{ showApiKey ? '隐藏' : '显示' }}</button>
+        </div>
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="isBatchProcessing"
+            @click="handleSaveApiKey"
+          >保存 API Key</button>
+          <button
+            v-if="hasKey"
+            type="button"
+            class="btn btn-secondary"
+            :disabled="isBatchProcessing"
+            @click="handleClearApiKey"
+          >清除</button>
+          <span v-if="apiKeySavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p v-if="usingEnvFallback" class="msg msg-info">
+          当前使用 .env 默认 key。保存后会覆盖为输入框中的值。
+        </p>
+        <p v-else-if="hasKey" class="msg msg-success">
+          ✓ 已配置 API Key（保存在 localStorage）。
+        </p>
+        <p v-else class="msg msg-info">
+          未配置 API Key。归档时附件会保持"待处理"状态, 配置后可手动或批量处理。
+        </p>
+      </div>
+
+      <!-- Base URL -->
+      <div class="config-row">
+        <label class="config-label">Base URL</label>
         <input
-          v-model="apiKeyInput"
-          :type="showApiKey ? 'text' : 'password'"
-          class="api-key-input"
-          placeholder="sk-..."
+          v-model="baseUrlInput"
+          type="text"
+          class="text-input"
+          placeholder="https://api.openai.com/v1 或 https://ccapi.us/v1"
           autocomplete="off"
           spellcheck="false"
           :disabled="isBatchProcessing"
         />
-        <button
-          type="button"
-          class="btn btn-secondary"
-          @click="showApiKey = !showApiKey"
-        >{{ showApiKey ? '隐藏' : '显示' }}</button>
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="isBatchProcessing"
+            @click="handleSaveBaseUrl"
+          >保存 Base URL</button>
+          <span v-if="baseUrlSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p class="msg msg-info">
+          只填到 <code>/v1</code>, 程序会自动拼 <code>/chat/completions</code>。
+          切换中转站只需改这一栏 + Model。
+        </p>
       </div>
 
-      <div class="action-row">
-        <button
-          type="button"
-          class="btn btn-primary"
+      <!-- Model -->
+      <div class="config-row">
+        <label class="config-label">Model</label>
+        <input
+          v-model="modelInput"
+          type="text"
+          class="text-input"
+          placeholder="gpt-4o / gpt-5.5 / deepseek-chat / moonshot-v1-8k-vision-preview 等"
+          autocomplete="off"
+          spellcheck="false"
           :disabled="isBatchProcessing"
-          @click="handleSaveApiKey"
-        >保存 API key</button>
-        <button
-          v-if="hasKey"
-          type="button"
-          class="btn btn-secondary"
-          :disabled="isBatchProcessing"
-          @click="handleClearApiKey"
-        >清除</button>
-        <span v-if="apiKeySavedFlash" class="saved-flash">✓ 已保存</span>
+        />
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="isBatchProcessing"
+            @click="handleSaveModel"
+          >保存 Model</button>
+          <span v-if="modelSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p class="msg msg-info">
+          必须支持 Vision（图片输入）+ JSON 强制输出。
+          非官方模型若 <code>response_format: json_object</code> 不稳,
+          可能导致解析失败。
+        </p>
       </div>
-
-      <p v-if="usingEnvFallback" class="msg msg-info">
-        当前使用 .env 默认 key。保存后会覆盖为输入框中的值。
-      </p>
-      <p v-else-if="hasKey" class="msg msg-success">
-        ✓ 已配置 API key（保存在 localStorage）。
-      </p>
-      <p v-else class="msg msg-info">
-        未配置 API key。归档时附件会保持"待处理"状态, 配置后可手动或批量处理。
-      </p>
     </section>
 
     <!-- § 批量处理附件 -->
@@ -810,6 +897,53 @@ onMounted(() => {
 .api-key-input:disabled {
   background: #f9fafb;
   cursor: not-allowed;
+}
+
+.config-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1.2rem;
+}
+
+.config-row:last-child {
+  margin-bottom: 0;
+}
+
+.config-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.text-input {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  background: white;
+  color: #1f2937;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.text-input:disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.config-row code {
+  font-family: monospace;
+  background: #f3f4f6;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+  color: #1e40af;
 }
 
 .saved-flash {

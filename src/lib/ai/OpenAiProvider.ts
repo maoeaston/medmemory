@@ -49,8 +49,13 @@ const VALID_DOC_TYPES: ReadonlySet<DocType> = new Set([
  */
 const VALID_ABNORMAL_TAGS = new Set(['H', 'L', 'N']);
 
+/**
+ * 技术层 fallback 默认值（构造函数 default param 用）。
+ * 业务层（useAiConfig）不依赖此常量——baseUrl/model 由用户主动填,
+ * 调用方（useAiProcess）会在调用前校验非空。此处默认仅为健壮性兜底。
+ */
 const DEFAULT_MODEL = 'gpt-4o';
-const API_URL = 'https://api.openai.com/v1/chat/completions';
+const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 
 /**
  * OpenAI Vision API 请求体（只填我们用的字段）。
@@ -106,17 +111,26 @@ interface ExpectedJsonOutput {
 
 export class OpenAiProvider implements AiProvider {
   readonly model: string;
+  private readonly endpoint: string;
 
   constructor(
     private readonly apiKey: string,
+    baseUrl: string = DEFAULT_BASE_URL,
     model: string = DEFAULT_MODEL,
   ) {
     if (!apiKey) {
       throw new AiProviderError(
-        'OpenAI API key 为空, 请到设置页配置',
+        'API key 为空, 请到设置页配置',
         'unauthorized',
       );
     }
+    // OpenAI SDK 兼容行为: 用户填到 baseURL (如 https://ccapi.us/v1),
+    // 代码拼 /chat/completions, 最终 https://ccapi.us/v1/chat/completions.
+    // 不做"用户已填 /chat/completions 就保留"的容错——主流约定要求用户只填到 /v1,
+    // 容错反而让边界模糊 (参考 ccapi.us 文档"接口地址与密钥"章节).
+    // 仅处理一种边界: 末尾多余斜杠.
+    const normalizedBase = baseUrl.replace(/\/+$/, '');
+    this.endpoint = `${normalizedBase}/chat/completions`;
     this.model = model;
   }
 
@@ -139,7 +153,7 @@ export class OpenAiProvider implements AiProvider {
 
     let resp: Response;
     try {
-      resp = await fetch(API_URL, {
+      resp = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

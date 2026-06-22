@@ -34,12 +34,6 @@ import type {
 } from '@/repositories';
 
 /**
- * AI 内容写入时使用的 model 字段。
- * 与 OpenAiProvider 内部默认 model 保持一致, 任何切换需同步调整。
- */
-const DEFAULT_MODEL = 'gpt-4o';
-
-/**
  * 单次批量处理进度。
  */
 export interface BatchProgress {
@@ -78,9 +72,19 @@ export function useAiProcess() {
    *         （API key 未配置和 attachment 不存在是 precondition 错误, 不写 FAILED）
    */
   async function processAttachment(attachmentId: number): Promise<void> {
-    const { apiKey, hasKey } = useAiConfig();
+    const { apiKey, baseUrl, model, hasKey } = useAiConfig();
     if (!hasKey.value) {
-      const msg = '未配置 OpenAI API key, 请到设置页填写';
+      const msg = '未配置 API key, 请到设置页填写';
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+    if (!baseUrl.value) {
+      const msg = '未配置 Base URL, 请到设置页填写（如 https://api.openai.com/v1 或 https://ccapi.us/v1）';
+      processingError.value = msg;
+      throw new Error(msg);
+    }
+    if (!model.value) {
+      const msg = '未配置 Model, 请到设置页填写（如 gpt-4o / gpt-5.5 等）';
       processingError.value = msg;
       throw new Error(msg);
     }
@@ -110,8 +114,13 @@ export function useAiProcess() {
         'OCR_PROCESSING',
       );
 
-      const result = await callProvider(attachment, apiKey.value);
-      await writeResults(attachment, result);
+      const result = await callProvider(
+        attachment,
+        apiKey.value,
+        baseUrl.value,
+        model.value,
+      );
+      await writeResults(attachment, result, model.value);
 
       // 状态推进: → SUMMARY_DONE
       await repos.attachment.updateProcessingStatus(
@@ -148,6 +157,8 @@ export function useAiProcess() {
   async function callProvider(
     attachment: Attachment,
     apiKey: string,
+    baseUrl: string,
+    model: string,
   ): Promise<AiProcessingResult> {
     const storage = new IndexedDbStorageAdapter();
     const blob = await storage.getFile(attachment.storage_key);
@@ -157,7 +168,7 @@ export function useAiProcess() {
       );
     }
 
-    const provider = new OpenAiProvider(apiKey);
+    const provider = new OpenAiProvider(apiKey, baseUrl, model);
     return provider.processMedicalDocument({
       imageBlob: blob,
       prompt: MEDICAL_DOCUMENT_PROMPT,
@@ -176,11 +187,12 @@ export function useAiProcess() {
   async function writeResults(
     attachment: Attachment,
     result: AiProcessingResult,
+    model: string,
   ): Promise<void> {
     const repos = await useRepositories();
     const baseInput = {
       attachment_id: attachment.id,
-      model: DEFAULT_MODEL,
+      model,
       prompt_version: PROMPT_VERSION,
     };
 
@@ -227,7 +239,7 @@ export function useAiProcess() {
           reference_range: ind.reference_range,
           abnormal_tag: ind.abnormal_tag,
           display_order: i,
-          model: DEFAULT_MODEL,
+          model,
           prompt_version: PROMPT_VERSION,
         }),
       );
