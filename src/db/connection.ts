@@ -23,6 +23,7 @@ import { sqlite3Worker1Promiser } from '@sqlite.org/sqlite-wasm';
 // @/../ 跳出 src 是因为 migrations 在项目根 db/ 下，不属于 src 树；路径别名 @ 只映射 src/
 import schemaSql from '@/../db/migrations/001_initial.sql?raw';
 import schema2Sql from '@/../db/migrations/002_lab_indicators.sql?raw';
+import schema3Sql from '@/../db/migrations/003_ai_suggestions.sql?raw';
 
 // ============================================================
 // 类型定义
@@ -304,7 +305,19 @@ async function runMigrations(promiser: PromiserFn): Promise<void> {
     }
   }
 
-  // 后续新增 003+ migration 在此追加 if currentVersion < 3 { ... }
+  if (currentVersion < 3) {
+    try {
+      await promiser('exec', { sql: schema3Sql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v3 (ai_contents suggested_health_problems) 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
+  }
+
+  // 后续新增 004+ migration 在此追加 if currentVersion < 4 { ... }
 }
 
 // ============================================================

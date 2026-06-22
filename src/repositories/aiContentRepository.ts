@@ -118,6 +118,28 @@ export class AiContentRepositoryImpl implements AiContentRepository {
     return rows.map(toEntity);
   }
 
+  /**
+   * 查 event 下所有待确认的 AI 推荐健康问题。
+   *
+   * JOIN attachments 按 event_id 过滤 + content_type='suggested_health_problems'。
+   * 不依赖 idx_ai_attachment (跨 attachment 查询, 走 attachments.event_id 索引)。
+   * 返回原始行, 由应用层解析 content JSON。
+   */
+  async listPendingSuggestionsByEvent(
+    eventId: number,
+  ): Promise<AiContent[]> {
+    const rows = await selectMany<AiContentRow>(
+      this.db,
+      `SELECT ai.*
+         FROM ai_contents ai
+         JOIN attachments a ON a.id = ai.attachment_id
+        WHERE a.event_id = ? AND ai.content_type = 'suggested_health_problems'
+        ORDER BY ai.created_at DESC`,
+      [eventId],
+    );
+    return rows.map(toEntity);
+  }
+
   async delete(id: number): Promise<void> {
     const changes = await executeWrite(
       this.db,

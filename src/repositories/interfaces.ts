@@ -52,8 +52,11 @@ export type ProcessingStatus =
   | 'SUMMARY_DONE'
   | 'FAILED';
 
-/** AI 内容类型（ai_contents.content_type, 对应 PRD 7.6） */
-export type AiContentType = 'summary' | 'ocr_fulltext';
+/** AI 内容类型（ai_contents.content_type, 对应 PRD 7.6 + 7.4 v3.1） */
+export type AiContentType =
+  | 'summary'
+  | 'ocr_fulltext'
+  | 'suggested_health_problems';
 
 /** 附件文档大类（attachments.doc_type） */
 export type DocType =
@@ -414,6 +417,14 @@ export interface AiContentRepository {
     attachmentId: number,
     contentType?: AiContentType
   ): Promise<AiContent[]>;
+  /**
+   * 查 event 下所有待确认的 AI 推荐健康问题 (JOIN attachments)。
+   *
+   * 用途: EventDetailView 进入时聚合展示"待确认推荐"区块。
+   * 每个 suggestion 是一条 ai_contents 记录 (content 存 SuggestedHealthProblem JSON),
+   * 用户确认/跳过后由应用层 delete。
+   */
+  listPendingSuggestionsByEvent(eventId: number): Promise<AiContent[]>;
   delete(id: number): Promise<void>;
 }
 

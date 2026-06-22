@@ -181,6 +181,8 @@ export function useAiProcess() {
    *   2. attachments.doc_type + subtype (LLM 判型回写, subtype = reportType 如"血常规")
    *   3. report_indicators: 化验单指标整批替换 (DELETE + INSERT)
    *   4. attachments.tags (AI 产出覆盖)
+   *   5. medical_events.summary: 附件级 summary 同步到事件级 (首个胜出, !event.summary 才写)
+   *   6. ai_contents (suggested_health_problems): 每个 suggestion 一条记录, 待用户确认
    *
    * 任一失败抛错, 让上层 catch 走 FAILED。
    */
@@ -251,6 +253,33 @@ export function useAiProcess() {
     const newTags = result.tags;
     if (!tagsEqual(currentTags, newTags)) {
       await repos.attachment.updateTags(attachment.id, newTags);
+    }
+
+    // v3: 附件级 summary → 事件级 summary（首个胜出策略）
+    // 仅在 attachment 已归档到 event 时触发; !event.summary 才写
+    //   - 多附件事件: 第一个完成 AI 处理的附件胜出, 后续不覆盖
+    //   - 手动编辑过 summary 的 event: AI 永不覆盖（用户主权）
+    // 刷新入口暂不做（如需, 加 "用最新附件 summary 覆盖" 按钮即可）
+    if (attachment.event_id !== null) {
+      const event = await repos.medicalEvent.getById(attachment.event_id);
+      if (event && !event.summary) {
+        await repos.medicalEvent.update(event.id, { summary: result.summary });
+      }
+    }
+
+    // v3: AI 推荐的健康问题 → ai_contents (suggested_health_problems)
+    // 每个 suggestion 一条记录 (不聚合成 JSON 数组), 用户确认/跳过后单条 delete
+    // 空数组不写 (保留 idempotency, 与 lab_indicators 一致)
+    if (result.suggestedHealthProblems.length > 0) {
+      await Promise.all(
+        result.suggestedHealthProblems.map((s) =>
+          repos.aiContent.create({
+            ...baseInput,
+            content_type: 'suggested_health_problems',
+            content: JSON.stringify(s),
+          }),
+        ),
+      );
     }
   }
 

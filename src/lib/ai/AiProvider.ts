@@ -39,7 +39,20 @@ export interface LabIndicatorExtracted {
 }
 
 /**
- * 单次 AI 处理产出（v2: doc_type 路由 + 化验单结构化）。
+ * AI 推荐的健康问题（v3.1 PRD 7.4 一键确认）。
+ *
+ * 不直接落 health_problems 表 — 先写 ai_contents 待用户确认。
+ * 原因见 plan: 严格遵循 PRD "一键确认" 交互。
+ */
+export interface SuggestedHealthProblem {
+  /** 健康问题名称, 2-10 字, 如 "反复呼吸道感染" / "高血压随访" */
+  name: string;
+  /** 置信度: high (图片明确提及) / medium (症状推断) / low (少用) */
+  confidence: 'high' | 'medium' | 'low';
+}
+
+/**
+ * 单次 AI 处理产出（v3: doc_type 路由 + 化验单结构化 + 健康问题推荐）。
  */
 export interface AiProcessingResult {
   /** LLM 判型结果, 写入 attachments.doc_type */
@@ -61,6 +74,13 @@ export interface AiProcessingResult {
    * display_order 由数组顺序决定, useAiProcess 写入时按下标填。
    */
   labIndicators: LabIndicatorExtracted[];
+  /**
+   * AI 推荐的健康问题集（v3 新增）。
+   * 空数组 = 无推荐 / 推荐被 LLM 跳过。
+   * 每个 suggestion 写入 ai_contents (content_type='suggested_health_problems'),
+   * 用户确认/跳过后应用层 delete。
+   */
+  suggestedHealthProblems: SuggestedHealthProblem[];
 }
 
 /**

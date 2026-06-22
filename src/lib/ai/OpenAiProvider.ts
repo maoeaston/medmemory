@@ -28,6 +28,7 @@ import {
   type AiProcessingResult,
   type LabIndicatorExtracted,
   type MultimodalRequest,
+  type SuggestedHealthProblem,
 } from './AiProvider';
 import type { DocType } from '@/repositories';
 
@@ -48,6 +49,11 @@ const VALID_DOC_TYPES: ReadonlySet<DocType> = new Set([
  * v2 合法 abnormal_tag 值（与 report_indicators.abnormal_tag CHECK 对齐）。
  */
 const VALID_ABNORMAL_TAGS = new Set(['H', 'L', 'N']);
+
+/**
+ * v3 合法 confidence 值（与 SuggestedHealthProblem.confidence 对齐）。
+ */
+const VALID_CONFIDENCE_LEVELS = new Set(['high', 'medium', 'low']);
 
 /**
  * 技术层 fallback 默认值（构造函数 default param 用）。
@@ -96,7 +102,7 @@ interface OpenAiChatResponse {
 }
 
 /**
- * 期望的 JSON 输出 schema（prompt v2 强制）。
+ * 期望的 JSON 输出 schema（prompt v3 强制）。
  */
 interface ExpectedJsonOutput {
   doc_type: unknown;
@@ -107,6 +113,7 @@ interface ExpectedJsonOutput {
   ocr_fulltext: unknown;
   tags: unknown;
   lab_indicators: unknown;
+  suggested_health_problems: unknown;
 }
 
 export class OpenAiProvider implements AiProvider {
@@ -279,6 +286,7 @@ function parseMedicalDocumentJson(raw: string): AiProcessingResult {
     ocr_fulltext,
     tags,
     lab_indicators,
+    suggested_health_problems,
   } = parsed;
 
   // doc_type: 必须是合法枚举
@@ -328,6 +336,12 @@ function parseMedicalDocumentJson(raw: string): AiProcessingResult {
     typedDocType,
   );
 
+  // suggested_health_problems: 数组, 元素必须符合 SuggestedHealthProblem
+  // v3 新增。非法元素整条丢弃不抛错（避免单条错导致整批 FAILED）
+  const typedSuggestedProblems = validateSuggestedHealthProblems(
+    suggested_health_problems,
+  );
+
   return {
     docType: typedDocType,
     reportType: typedReportType,
@@ -337,6 +351,7 @@ function parseMedicalDocumentJson(raw: string): AiProcessingResult {
     ocrFulltext: ocr_fulltext,
     tags,
     labIndicators: typedLabIndicators,
+    suggestedHealthProblems: typedSuggestedProblems,
   };
 }
 
@@ -457,4 +472,48 @@ function validateLabIndicator(
     reference_range,
     abnormal_tag,
   };
+}
+
+/**
+ * 校验 suggested_health_problems 数组（v3 新增）。
+ *
+ * 校验失败时降级（丢弃非法元素）而非抛错 — 原因:
+ *   单条 malformed recommendation 不应导致整个附件处理 FAILED
+ *   （lab_indicators 走严格校验因为那是化验单核心结构数据, 推荐是软信息）
+ *
+ * 完全缺失 / 非数组 / 全部非法 → 返回空数组（视为 LLM 未推荐）
+ */
+function validateSuggestedHealthProblems(
+  v: unknown,
+): SuggestedHealthProblem[] {
+  if (!Array.isArray(v)) {
+    // 非数组 → prompt drift, 但降级为空数组（不 FAILED 整批）
+    return [];
+  }
+
+  const result: SuggestedHealthProblem[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const item = v[i];
+    if (typeof item !== 'object' || item === null) continue;
+
+    const obj = item as Record<string, unknown>;
+    const name = obj.name;
+    if (typeof name !== 'string' || name.trim() === '') continue;
+
+    const confidenceRaw = obj.confidence;
+    if (
+      typeof confidenceRaw !== 'string' ||
+      !VALID_CONFIDENCE_LEVELS.has(confidenceRaw)
+    ) {
+      // confidence 缺失 / 非法 → 默认 medium（允许保留推荐, 不丢弃）
+      result.push({ name: name.trim(), confidence: 'medium' });
+      continue;
+    }
+
+    result.push({
+      name: name.trim(),
+      confidence: confidenceRaw as SuggestedHealthProblem['confidence'],
+    });
+  }
+  return result;
 }
