@@ -26,6 +26,8 @@ import { useRepositories } from '@/composables/useRepositories';
 import type { Attachment } from '@/repositories';
 import ModalOverlay from '@/components/ui/ModalOverlay.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
+import { useSyncConfig } from '@/composables/useSyncConfig';
+import { useSync } from '@/composables/useSync';
 
 // ============================================================
 // 导出状态
@@ -365,6 +367,157 @@ const batchProgressText = computed(() => {
   if (p === null) return '';
   return `处理中 ${p.current} / ${p.total} (成功 ${p.successCount}, 失败 ${p.failureCount})`;
 });
+
+// ============================================================
+// 多端同步配置 (§9 useSync API)
+// ============================================================
+const {
+  serverUrl: syncServerUrl,
+  token: syncToken,
+  clientId: syncClientId,
+  clientLabel: syncClientLabel,
+  isConfigured: syncIsConfigured,
+  saveServerUrl: syncSaveServerUrl,
+  saveToken: syncSaveToken,
+  saveClientLabel: syncSaveClientLabel,
+} = useSyncConfig();
+
+const {
+  syncState,
+  syncError,
+  serverVersion: syncServerVersion,
+  lockHolder: syncLockHolder,
+  lastSyncAt: syncLastSyncAt,
+  checkout: syncCheckout,
+  checkin: syncCheckin,
+  forceReleaseLock: syncForceReleaseLock,
+  testConnection: syncTestConnection,
+} = useSync();
+
+// 配置输入框 (与 localStorage 双向)
+const syncUrlInput = ref(syncServerUrl.value);
+const syncTokenInput = ref(syncToken.value);
+const syncLabelInput = ref(syncClientLabel.value);
+const showSyncToken = ref(false);
+const syncUrlSavedFlash = ref(false);
+const syncTokenSavedFlash = ref(false);
+const syncLabelSavedFlash = ref(false);
+
+// 测试连接
+const isTestingConnection = ref(false);
+const testConnectionResult = ref<{ ok: boolean; message: string } | null>(null);
+
+// 操作 loading
+const isSyncOperating = ref(false);
+const syncOperateError = ref<string | null>(null);
+
+const syncStateText = computed(() => {
+  switch (syncState.value) {
+    case 'idle':
+      return syncServerVersion.value !== null
+        ? `\u5DF2\u540C\u6B65 (v${syncServerVersion.value})`
+        : '\u7A7A\u95F2';
+    case 'pulling':
+      return '\u62C9\u53D6\u4E2D...';
+    case 'pushing':
+      return '\u4E0A\u4F20\u4E2D...';
+    case 'editing':
+      return '\u7F16\u8F91\u4E2D (\u5DF2\u83B7\u9501)';
+    case 'locked-by-other':
+      return syncLockHolder.value
+        ? `${syncLockHolder.value.clientLabel} \u7F16\u8F91\u4E2D`
+        : '\u9501\u88AB\u5176\u4ED6\u8BBE\u5907\u6301\u6709';
+    case 'offline':
+      return '\u79BB\u7EBF';
+    case 'error':
+      return syncError.value?.message ?? '\u540C\u6B65\u9519\u8BEF';
+    default:
+      return '\u672A\u77E5';
+  }
+});
+
+const canCheckout = computed(
+  () =>
+    syncIsConfigured.value &&
+    (syncState.value === 'idle' || syncState.value === 'error'),
+);
+
+const canCheckin = computed(
+  () =>
+    syncIsConfigured.value &&
+    syncState.value === 'editing',
+);
+
+function handleSaveSyncUrl(): void {
+  syncSaveServerUrl(syncUrlInput.value);
+  syncUrlSavedFlash.value = true;
+  setTimeout(() => { syncUrlSavedFlash.value = false; }, 2000);
+}
+
+function handleSaveSyncToken(): void {
+  syncSaveToken(syncTokenInput.value);
+  syncTokenSavedFlash.value = true;
+  setTimeout(() => { syncTokenSavedFlash.value = false; }, 2000);
+}
+
+function handleSaveSyncLabel(): void {
+  syncSaveClientLabel(syncLabelInput.value);
+  syncLabelSavedFlash.value = true;
+  setTimeout(() => { syncLabelSavedFlash.value = false; }, 2000);
+}
+
+async function handleTestConnection(): Promise<void> {
+  isTestingConnection.value = true;
+  testConnectionResult.value = null;
+  try {
+    testConnectionResult.value = await syncTestConnection();
+  } catch (e) {
+    testConnectionResult.value = {
+      ok: false,
+      message: e instanceof Error ? e.message : String(e),
+    };
+  } finally {
+    isTestingConnection.value = false;
+  }
+}
+
+async function handleSyncCheckout(): Promise<void> {
+  isSyncOperating.value = true;
+  syncOperateError.value = null;
+  try {
+    await syncCheckout();
+    // 成功后 reload (importAllData 覆写了 sqlite, 需要重建组件)
+    setTimeout(() => window.location.reload(), 400);
+  } catch {
+    syncOperateError.value = syncError.value?.message ?? '\u62C9\u53D6\u5931\u8D25';
+  } finally {
+    isSyncOperating.value = false;
+  }
+}
+
+async function handleSyncCheckin(): Promise<void> {
+  isSyncOperating.value = true;
+  syncOperateError.value = null;
+  try {
+    await syncCheckin();
+  } catch {
+    syncOperateError.value = syncError.value?.message ?? '\u63A8\u9001\u5931\u8D25';
+  } finally {
+    isSyncOperating.value = false;
+  }
+}
+
+async function handleSyncForceRelease(): Promise<void> {
+  isSyncOperating.value = true;
+  syncOperateError.value = null;
+  try {
+    await syncForceReleaseLock();
+  } catch {
+    syncOperateError.value = syncError.value?.message ?? '\u91CA\u653E\u9501\u5931\u8D25';
+  } finally {
+    isSyncOperating.value = false;
+  }
+}
 
 onMounted(() => {
   void refreshPending();
@@ -733,6 +886,157 @@ onMounted(() => {
           </li>
         </ul>
       </details>
+    </section>
+
+    <!-- § 多端同步 -->
+    <section class="settings-section">
+      <h2 class="section-title">☁️ 多端同步</h2>
+      <p class="section-desc">
+        配置同步服务器后, 可以在多台设备间同步家庭医疗数据。
+        采用「接力棒」模式: 一端编辑时锁定, 另一端只读等待。
+      </p>
+
+      <!-- 服务器 URL -->
+      <div class="config-row">
+        <label class="config-label">服务器 URL</label>
+        <input
+          v-model="syncUrlInput"
+          type="text"
+          class="text-input"
+          placeholder="https://maohedong.top"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="handleSaveSyncUrl"
+          >保存</button>
+          <span v-if="syncUrlSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+      </div>
+
+      <!-- Token -->
+      <div class="config-row">
+        <label class="config-label">同步密钥 (Token)</label>
+        <div class="api-key-row">
+          <input
+            v-model="syncTokenInput"
+            :type="showSyncToken ? 'text' : 'password'"
+            class="api-key-input"
+            placeholder="共享密钥..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="showSyncToken = !showSyncToken"
+          >{{ showSyncToken ? '隐藏' : '显示' }}</button>
+        </div>
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="handleSaveSyncToken"
+          >保存密钥</button>
+          <span v-if="syncTokenSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+      </div>
+
+      <!-- 设备名称 -->
+      <div class="config-row">
+        <label class="config-label">本设备名称</label>
+        <input
+          v-model="syncLabelInput"
+          type="text"
+          class="text-input"
+          placeholder="如: 爸爸的手机 / 妈妈的电脑"
+          maxlength="20"
+          autocomplete="off"
+        />
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="handleSaveSyncLabel"
+          >保存名称</button>
+          <span v-if="syncLabelSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p class="msg msg-info">
+          Client ID: <code>{{ syncClientId }}</code>
+        </p>
+      </div>
+
+      <!-- 测试连接 -->
+      <div class="action-row">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          :disabled="!syncIsConfigured || isTestingConnection"
+          @click="handleTestConnection"
+        >
+          {{ isTestingConnection ? '测试中...' : '测试连接' }}
+        </button>
+        <span
+          v-if="testConnectionResult"
+          class="msg-inline"
+          :class="testConnectionResult.ok ? 'msg-success' : 'msg-error'"
+        >
+          {{ testConnectionResult.message }}
+        </span>
+      </div>
+
+      <!-- 当前状态 -->
+      <div class="sync-status-box">
+        <div class="sync-status-row">
+          <span class="sync-status-label">当前状态:</span>
+          <span class="sync-status-value">{{ syncStateText }}</span>
+        </div>
+        <div v-if="syncServerVersion !== null" class="sync-status-row">
+          <span class="sync-status-label">服务器版本:</span>
+          <span class="sync-status-value">v{{ syncServerVersion }}</span>
+        </div>
+        <div v-if="syncLockHolder" class="sync-status-row">
+          <span class="sync-status-label">锁主:</span>
+          <span class="sync-status-value">{{ syncLockHolder.clientLabel }}</span>
+        </div>
+        <div v-if="syncLastSyncAt" class="sync-status-row">
+          <span class="sync-status-label">最后同步:</span>
+          <span class="sync-status-value">{{ syncLastSyncAt.toLocaleString() }}</span>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="action-row sync-actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="!canCheckout || isSyncOperating"
+          @click="handleSyncCheckout"
+        >
+          {{ isSyncOperating ? '处理中...' : '立即拉取 (checkout)' }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="!canCheckin || isSyncOperating"
+          @click="handleSyncCheckin"
+        >
+          {{ isSyncOperating ? '处理中...' : '立即推送 (checkin)' }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger"
+          :disabled="!syncIsConfigured || isSyncOperating"
+          @click="handleSyncForceRelease"
+        >
+          强制释放锁
+        </button>
+      </div>
+
+      <p v-if="syncOperateError" class="msg msg-error">{{ syncOperateError }}</p>
     </section>
 
     <!-- § 重置数据库 -->
@@ -1136,5 +1440,43 @@ onMounted(() => {
 .status-failed {
   background: #fee2e2;
   color: var(--color-danger-text);
+}
+
+/* === 多端同步 === */
+.msg-inline {
+  font-size: var(--font-size-small);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-badge);
+}
+
+.sync-status-box {
+  margin: 0.8rem 0;
+  padding: 0.7rem 0.9rem;
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-input);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sync-status-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: var(--font-size-small);
+  align-items: baseline;
+}
+
+.sync-status-label {
+  color: var(--color-text-muted);
+  min-width: 5.5rem;
+}
+
+.sync-status-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.sync-actions {
+  gap: 0.5rem;
 }
 </style>

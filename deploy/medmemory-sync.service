@@ -1,0 +1,24 @@
+[Unit]
+Description=MedMemory Sync Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/medmemory-sync
+Environment=SYNC_TOKEN=CHANGE_ME_TO_YOUR_TOKEN
+Environment=PORT=3001
+Environment=DATA_DIR=/var/www/medmemory-sync
+ExecStart=/usr/bin/node sync-server.js
+Restart=always
+RestartSec=5
+
+# 安全限制
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/www/medmemory-sync
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+{
+  "name": "medmemory-sync-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "MedMemory 同步服务 — 接力棒式 checkout/checkin 锁模型",
+  "scripts": {
+    "start": "node sync-server.js",
+    "dev": "node --watch sync-server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "multer": "^2.0.0"
+  }
+}

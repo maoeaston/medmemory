@@ -1,0 +1,16 @@
+maohedong.top {
+	encode gzip zstd
+
+	root * /var/www/medmemory
+
+	# SPA fallback: /events/3 等客户端路由回退到 index.html
+	try_files {path} /index.html
+
+	# COOP/COEP: sqlite-wasm OPFS (SharedArrayBuffer) 的硬约束
+	header {
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Embedder-Policy "require-corp"
+	}
+
+	file_server
+}

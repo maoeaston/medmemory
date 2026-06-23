@@ -6,6 +6,15 @@
 // 导航顺序按使用频率: Dashboard / Inbox / **+Capture**（高亮）/ 成员 / 时间线 / 搜索 / 药箱 / 设置
 // +Capture 是 MVP 最高优先级入口, 视觉强化
 // 时间线放搜索前: 浏览历史事件的主入口（区别于搜索的关键字定位）
+import { onMounted } from 'vue';
+import SyncIndicator from '@/components/SyncIndicator.vue';
+import { useSync } from '@/composables/useSync';
+
+const { initOnAppStart } = useSync();
+
+onMounted(() => {
+  void initOnAppStart();
+});
 </script>
 
 <template>
@@ -22,6 +31,7 @@
         <RouterLink to="/medicines" class="nav-link">药箱</RouterLink>
         <RouterLink to="/settings" class="nav-link">设置</RouterLink>
       </nav>
+      <SyncIndicator class="sync-indicator-slot" />
     </header>
 
     <RouterView />
@@ -111,5 +121,10 @@ body {
 .nav-cta.router-link-active {
   background: var(--color-primary-dark);
   color: var(--color-text-on-primary) !important;
+}
+
+.sync-indicator-slot {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 </style>
