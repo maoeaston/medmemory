@@ -3,6 +3,11 @@ dist
 dist-ssr
 *.local
 
+# 环境变量 (含 API key 等敏感信息)
+.env
+.env.*
+!.env.example
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
@@ -24,3 +29,15 @@ pnpm-debug.log*
 # 备份产物 (导出的 ZIP 不入库)
 *.zip
 backups/
+
+# 本地 sqlite 数据库 (开发时导出测试用)
+*.sqlite3
+*.db
+
+# 微信图片 (开发参考用图, 不入库)
+微信图片_*
+
+# 临时 scratch 脚本 (本地调试用)
+.scratch/
+continue-here.md
+.continue-here.md
