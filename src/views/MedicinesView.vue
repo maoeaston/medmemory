@@ -23,6 +23,7 @@ import type {
 import ModalOverlay from '@/components/ui/ModalOverlay.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import MedicineForm from '@/components/medicines/MedicineForm.vue';
+import MedicationGuideModal from '@/components/health-agent/MedicationGuideModal.vue';
 
 // === 数据 ===
 const medicines = ref<Medicine[]>([]);
@@ -53,6 +54,20 @@ const saveError = ref<string | null>(null);
 const deletingMedicine = ref<Medicine | null>(null);
 const isDeleting = ref(false);
 const deleteError = ref<string | null>(null);
+
+// === v3.2 用药指南 modal 状态 ===
+const showMedGuideModal = ref(false);
+const currentMedicineId = ref<number | null>(null);
+
+function openMedGuide(m: Medicine): void {
+  currentMedicineId.value = m.id;
+  showMedGuideModal.value = true;
+}
+
+function closeMedGuideModal(): void {
+  showMedGuideModal.value = false;
+  currentMedicineId.value = null;
+}
 
 // === 时间常量（组件挂载时计算一次, 与 MedicineWarningPanel 逻辑一致）===
 // YYYY-MM 格式; expiry_date 是月粒度, "<本月" 即已过期
@@ -330,6 +345,13 @@ onMounted(() => {
           <button
             type="button"
             class="btn btn-secondary btn-small"
+            @click="openMedGuide(m)"
+          >
+            ✨ AI 用药指南
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-small"
             @click="openEditModal(m)"
           >
             编辑
@@ -377,6 +399,13 @@ onMounted(() => {
       :error-message="deleteError"
       @confirm="handleDeleteConfirm"
       @cancel="closeDeleteModal"
+    />
+
+    <!-- v3.2: 用药指南 modal -->
+    <MedicationGuideModal
+      v-if="showMedGuideModal && currentMedicineId !== null"
+      :medicine-id="currentMedicineId"
+      @close="closeMedGuideModal"
     />
   </main>
 </template>

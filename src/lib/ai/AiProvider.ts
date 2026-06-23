@@ -104,6 +104,98 @@ export interface AiProcessingResult {
 }
 
 /**
+ * 化验单解读请求（v3.2 PRD §2.1）。
+ *
+ * 输入: 已结构化的 lab_indicators + 事件 summary + 可选成员年龄/性别。
+ * 输出: LabInterpretation（参考性解读, 不替代医生）。
+ */
+export interface LabInterpretationRequest {
+  /** 已结构化的化验指标（应用层从 report_indicators 表读取后映射） */
+  indicators: LabIndicatorExtracted[];
+  /** 事件摘要（精炼主诉, 提供上下文） */
+  eventSummary: string | null;
+  /** 成员年龄（推算自 family_members.birthday, 缺失则 undefined） */
+  memberAge?: number;
+  /** 成员性别, 缺失则 undefined */
+  memberGender?: string;
+  prompt: string;
+}
+
+/**
+ * 化验单解读结果（v3.2 PRD §2.1）。
+ *
+ * 注意:
+ *   - urgency 是 LLM 软判断, 前端硬规则（criticalValue.ts）会覆盖
+ *   - ai_interpretations.content_json 存此结构, 危急值实时叠加不落库
+ */
+export interface LabInterpretation {
+  /** 整体印象, 1-2 句话总结异常模式 */
+  overallImpression: string;
+  /** LLM 软判断紧急程度（UI 展示时叠加硬规则覆盖） */
+  urgency: 'observe' | 'suggest_visit' | 'urgent_visit';
+  /** 异常项逐条解读, 顺序按 lab_indicators 原序 */
+  abnormalExplanations: Array<{
+    /** 对应 lab_indicators.name_cn */
+    indicatorName: string;
+    /** 这个指标偏高/偏低通常意味着什么, 1-2 句 */
+    interpretation: string;
+    /** 可能原因, 2-4 个简短词 */
+    possibleCauses: string[];
+  }>;
+  /** 综合建议（如「建议结合既往化验趋势」「建议进一步检查 X」） */
+  recommendation: string;
+  /** 建议就诊科室（必须从预定义白名单选, 见 PRD 附录 A + OpenAiProvider.validateDepartments） */
+  suggestedDepartments: string[];
+}
+
+/**
+ * 用药指南请求（v3.2 PRD §2.2）。
+ */
+export interface MedicationGuideRequest {
+  /** 目标药物基本信息 */
+  medicine: {
+    name: string;
+    usage: string | null;
+    remark: string | null;
+  };
+  /** 同成员其他药物（用于检查相互作用, 空数组表示单药） */
+  otherMedicines: Array<{ name: string }>;
+  /** 同成员既往健康问题（用于既往史警示） */
+  healthProblems: Array<{ name: string }>;
+  /** 成员年龄 */
+  memberAge?: number;
+  /** 成员性别 */
+  memberGender?: string;
+  prompt: string;
+}
+
+/**
+ * 用药指南结果（v3.2 PRD §2.2）。
+ */
+export interface MedicationGuide {
+  /** 药物通用说明 (1-2 句, 该药主要用于什么) */
+  overview: string;
+  /** 用法用量通用范围 (说明书常规, 不根据体重/年龄计算个人剂量) */
+  usualDosage: string;
+  /** 常见副作用 top 3-5 */
+  commonSideEffects: string[];
+  /** 严重副作用 (需立即停药就医, ≤3 条) */
+  seriousSideEffects: string[];
+  /** 相互作用警示 (与同成员其他药物的已知相互作用; 无其他药物时空数组) */
+  interactions: Array<{
+    /** 对应另一条 medicines.name (校验: 必须在 otherMedicines 子集, 防编造) */
+    otherMedicine: string;
+    /** 相互作用描述 */
+    description: string;
+    severity: 'mild' | 'moderate' | 'severe';
+  }>;
+  /** 红旗警示 (成员特定: 儿童/孕妇/老年人/肝肾功能不全等慎用) */
+  redFlags: string[];
+  /** 是否需要医生指导使用 (处方药/特殊管理药品 true, OTC false) */
+  requiresPrescription: boolean;
+}
+
+/**
  * AI Provider 抽象。每个 provider 只管"图片 → 三输出"这一件事。
  * 状态机推进 / ai_contents 写入 / tags 落盘由 useAiProcess 编排。
  */
@@ -121,6 +213,20 @@ export interface AiProvider {
   suggestHealthProblemsFromText(
     req: TextSuggestionRequest,
   ): Promise<SuggestedHealthProblem[]>;
+  /**
+   * 化验单解读（v3.2 PRD §2.1）。
+   *
+   * 输入已结构化指标 + 上下文, 输出参考性解读 + 建议就诊科室。
+   * 紧急程度 urgency 是 LLM 软判断, 前端硬规则会覆盖（见 criticalValue.ts）。
+   */
+  interpretLabResult(req: LabInterpretationRequest): Promise<LabInterpretation>;
+  /**
+   * 用药指南（v3.2 PRD §2.2）。
+   *
+   * 输入药物 + 同成员其他药物 + 既往健康问题, 输出用药参考指南。
+   * 不开新处方, 不算个人剂量, 仅解读已存在药物。
+   */
+  guideMedication(req: MedicationGuideRequest): Promise<MedicationGuide>;
 }
 
 /**

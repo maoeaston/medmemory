@@ -72,7 +72,7 @@ export function useAiProcess() {
    *         （API key 未配置和 attachment 不存在是 precondition 错误, 不写 FAILED）
    */
   async function processAttachment(attachmentId: number): Promise<void> {
-    const { apiKey, baseUrl, model, hasKey } = useAiConfig();
+    const { apiKey, baseUrl, model, hasKey } = useAiConfig('ocr');
     if (!hasKey.value) {
       const msg = '未配置 API key, 请到设置页填写';
       processingError.value = msg;
@@ -162,7 +162,7 @@ export function useAiProcess() {
    * @throws API key/baseUrl/model 缺失 / 事件不存在 / 事件缺 title+summary / provider 调用失败
    */
   async function processTextEventSuggestions(eventId: number): Promise<void> {
-    const { apiKey, baseUrl, model, hasKey } = useAiConfig();
+    const { apiKey, baseUrl, model, hasKey } = useAiConfig('ocr');
     if (!hasKey.value) {
       const msg = '未配置 API key, 请到设置页填写';
       processingError.value = msg;
@@ -312,6 +312,9 @@ export function useAiProcess() {
     // v2: 化验单指标整批替换
     // 仅在 LLM 产出非空指标时触发; 空数组视为未提取, 不动旧数据 (保留 idempotency)
     if (result.labIndicators.length > 0) {
+      // v3.2: lab_indicators 重跑时连带删旧 AI 解读 (kind='lab'),
+      // 保证用户看到的解读总是基于最新指标。deleteByAttachment 幂等, 无解读时 changes=0。
+      await repos.aiInterpretation.deleteByAttachment(attachment.id);
       await repos.reportIndicator.deleteByAttachment(attachment.id);
       const inputs: LabIndicatorCreateInput[] = result.labIndicators.map(
         (ind, i) => ({

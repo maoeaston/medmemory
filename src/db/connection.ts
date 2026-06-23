@@ -25,6 +25,7 @@ import schemaSql from '@/../db/migrations/001_initial.sql?raw';
 import schema2Sql from '@/../db/migrations/002_lab_indicators.sql?raw';
 import schema3Sql from '@/../db/migrations/003_ai_suggestions.sql?raw';
 import schema4Sql from '@/../db/migrations/004_event_ai_suggestions.sql?raw';
+import schema5Sql from '@/../db/migrations/005_ai_interpretations.sql?raw';
 
 // ============================================================
 // 类型定义
@@ -330,7 +331,19 @@ async function runMigrations(promiser: PromiserFn): Promise<void> {
     }
   }
 
-  // 后续新增 005+ migration 在此追加 if currentVersion < 5 { ... }
+  if (currentVersion < 5) {
+    try {
+      await promiser('exec', { sql: schema5Sql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v5 (ai_interpretations v3.2 健康助手) 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
+  }
+
+  // 后续新增 006+ migration 在此追加 if currentVersion < 6 { ... }
 }
 
 // ============================================================

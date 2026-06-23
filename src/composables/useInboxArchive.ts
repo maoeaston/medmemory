@@ -198,7 +198,7 @@ async function migratePhotoAttachment(
 async function triggerAiProcessingInBackground(
   attachments: Attachment[],
 ): Promise<void> {
-  const { hasKey } = useAiConfig();
+  const { hasKey } = useAiConfig('ocr');
   if (!hasKey.value) return;
 
   const { useAiProcess } = await import('@/composables/useAiProcess');

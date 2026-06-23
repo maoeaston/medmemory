@@ -32,6 +32,11 @@ const props = defineProps<{
   attachment: Attachment;
 }>();
 
+const emit = defineEmits<{
+  /** v3.2: 用户点「✨ AI 化验解读」chip, 父组件（EventDetailView）打开 LabInterpretationModal */
+  interpretLab: [attachmentId: number];
+}>();
+
 const storage = new IndexedDbStorageAdapter();
 
 // === 原件加载 ===
@@ -75,7 +80,7 @@ watch(
 // === AI 处理 composable ===
 const { isProcessing, processingError, processAttachment, isApiKeyError } =
   useAiProcess();
-const { hasKey } = useAiConfig();
+const { hasKey } = useAiConfig('ocr');
 
 // === ai_contents 懒加载 ===
 const summaryContent = ref<string | null>(null);
@@ -494,6 +499,13 @@ onUnmounted(() => {
               v-if="activeTab === 'indicators' && labIndicators.length > 0"
               class="ai-block indicator-block"
             >
+              <div class="indicator-action-row">
+                <button
+                  type="button"
+                  class="ai-btn ai-btn-secondary ai-btn-small"
+                  @click="emit('interpretLab', props.attachment.id)"
+                >✨ AI 化验解读</button>
+              </div>
               <div class="indicator-table-wrap">
                 <table class="indicator-table">
                   <thead>
@@ -772,6 +784,17 @@ onUnmounted(() => {
 
 .ai-btn-secondary:hover:not(:disabled) {
   background: #eff6ff;
+}
+
+.ai-btn-small {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.indicator-action-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.2rem;
 }
 
 .ai-hint {

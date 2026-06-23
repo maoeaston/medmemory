@@ -34,6 +34,7 @@ import ModalOverlay from '@/components/ui/ModalOverlay.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import EventEditForm from '@/components/events/EventEditForm.vue';
 import AttachmentPreview from '@/components/events/AttachmentPreview.vue';
+import LabInterpretationModal from '@/components/health-agent/LabInterpretationModal.vue';
 
 const props = defineProps<{ id: number }>();
 
@@ -92,12 +93,26 @@ function saveIgnoredNames(eventId: number, names: Set<string>): void {
 // 子项 3: 纯文本事件 AI 推荐状态
 const { processTextEventSuggestions, isProcessing: isAiProcessing } =
   useAiProcess();
-const { hasKey } = useAiConfig();
+const { hasKey } = useAiConfig('ocr');
 
 // 编辑 modal 状态
 const showEditModal = ref(false);
 const isSaving = ref(false);
 const saveError = ref<string | null>(null);
+
+// v3.2: 化验单 AI 解读 modal 状态
+const showLabInterpretationModal = ref(false);
+const currentLabInterpAttachmentId = ref<number | null>(null);
+
+function handleLabInterpretation(attachmentId: number): void {
+  currentLabInterpAttachmentId.value = attachmentId;
+  showLabInterpretationModal.value = true;
+}
+
+function closeLabInterpretationModal(): void {
+  showLabInterpretationModal.value = false;
+  currentLabInterpAttachmentId.value = null;
+}
 
 // 删除 dialog 状态
 const showDeleteModal = ref(false);
@@ -651,6 +666,7 @@ onMounted(() => {
             v-for="att in attachments"
             :key="att.id"
             :attachment="att"
+            @interpret-lab="handleLabInterpretation"
           />
         </div>
       </section>
@@ -687,6 +703,14 @@ onMounted(() => {
       :error-message="deleteError"
       @confirm="handleDeleteConfirm"
       @cancel="closeDeleteModal"
+    />
+
+    <!-- v3.2: 化验单 AI 解读 modal -->
+    <LabInterpretationModal
+      v-if="showLabInterpretationModal && currentLabInterpAttachmentId !== null"
+      :attachment-id="currentLabInterpAttachmentId"
+      :event-summary="event?.summary ?? null"
+      @close="closeLabInterpretationModal"
     />
   </main>
 </template>

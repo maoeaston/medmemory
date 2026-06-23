@@ -11,6 +11,7 @@
 
 import { getDb } from '@/db/connection';
 import { AiContentRepositoryImpl } from '@/repositories/aiContentRepository';
+import { AiInterpretationRepositoryImpl } from '@/repositories/aiInterpretationRepository';
 import { AttachmentRepositoryImpl } from '@/repositories/attachmentRepository';
 import { EventProblemRelRepositoryImpl } from '@/repositories/eventProblemRelRepository';
 import { FamilyMemberRepositoryImpl } from '@/repositories/familyMemberRepository';
@@ -33,6 +34,7 @@ export interface Repositories {
   eventProblemRel: InstanceType<typeof EventProblemRelRepositoryImpl>;
   attachment: InstanceType<typeof AttachmentRepositoryImpl>;
   aiContent: InstanceType<typeof AiContentRepositoryImpl>;
+  aiInterpretation: InstanceType<typeof AiInterpretationRepositoryImpl>;
   reportIndicator: InstanceType<typeof ReportIndicatorRepositoryImpl>;
   medicine: InstanceType<typeof MedicineRepositoryImpl>;
   search: InstanceType<typeof SearchRepositoryImpl>;
@@ -60,6 +62,7 @@ export async function createRepositories(): Promise<Repositories> {
     eventProblemRel: new EventProblemRelRepositoryImpl(db),
     attachment: new AttachmentRepositoryImpl(db),
     aiContent: new AiContentRepositoryImpl(db),
+    aiInterpretation: new AiInterpretationRepositoryImpl(db),
     reportIndicator: new ReportIndicatorRepositoryImpl(db),
     medicine: new MedicineRepositoryImpl(db),
     search: new SearchRepositoryImpl(db),
@@ -69,6 +72,7 @@ export async function createRepositories(): Promise<Repositories> {
 // 导出实现类（供 PoC / 测试代码单独构造, 不经过工厂）
 export {
   AiContentRepositoryImpl,
+  AiInterpretationRepositoryImpl,
   AttachmentRepositoryImpl,
   EventProblemRelRepositoryImpl,
   FamilyMemberRepositoryImpl,
@@ -86,6 +90,10 @@ export type {
   AiContentCreateInput,
   AiContentRepository,
   AiContentType,
+  AiInterpretation,
+  AiInterpretationCreateInput,
+  AiInterpretationKind,
+  AiInterpretationRepository,
   Allergy,
   Attachment,
   AttachmentCreateInput,

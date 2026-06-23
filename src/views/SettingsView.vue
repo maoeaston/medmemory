@@ -212,7 +212,7 @@ function formatSize(bytes: number): string {
 }
 
 // ============================================================
-// AI 处理配置 (API key + Base URL + Model)
+// AI 处理配置 (API key + Base URL + Model) — OCR namespace
 // ============================================================
 const {
   apiKey,
@@ -222,7 +222,7 @@ const {
   saveApiKey,
   saveBaseUrl,
   saveModel,
-} = useAiConfig();
+} = useAiConfig('ocr');
 
 const apiKeyInput = ref(apiKey.value);
 const baseUrlInput = ref(baseUrl.value);
@@ -233,7 +233,7 @@ const baseUrlSavedFlash = ref(false);
 const modelSavedFlash = ref(false);
 
 const usingEnvFallback = computed(
-  () => !localStorage.getItem('medmemory:aiApiKey') && hasKey.value,
+  () => !localStorage.getItem('medmemory:ai:ocr:apiKey') && hasKey.value,
 );
 
 function handleSaveApiKey(): void {
@@ -262,6 +262,57 @@ function handleSaveModel(): void {
   modelSavedFlash.value = true;
   setTimeout(() => {
     modelSavedFlash.value = false;
+  }, 2000);
+}
+
+// ============================================================
+// AI 健康助手配置 (health-agent namespace) — v3.2
+// 独立的 apiKey/baseUrl/model, 与 OCR 主流程可使用不同中转站/模型。
+// ============================================================
+const {
+  apiKey: haApiKey,
+  baseUrl: haBaseUrl,
+  model: haModel,
+  hasKey: haHasKey,
+  saveApiKey: haSaveApiKey,
+  saveBaseUrl: haSaveBaseUrl,
+  saveModel: haSaveModel,
+} = useAiConfig('health-agent');
+
+const haApiKeyInput = ref(haApiKey.value);
+const haBaseUrlInput = ref(haBaseUrl.value);
+const haModelInput = ref(haModel.value);
+const haShowApiKey = ref(false);
+const haApiKeySavedFlash = ref(false);
+const haBaseUrlSavedFlash = ref(false);
+const haModelSavedFlash = ref(false);
+
+function haHandleSaveApiKey(): void {
+  haSaveApiKey(haApiKeyInput.value);
+  haApiKeySavedFlash.value = true;
+  setTimeout(() => {
+    haApiKeySavedFlash.value = false;
+  }, 2000);
+}
+
+function haHandleClearApiKey(): void {
+  haApiKeyInput.value = '';
+  haSaveApiKey('');
+}
+
+function haHandleSaveBaseUrl(): void {
+  haSaveBaseUrl(haBaseUrlInput.value);
+  haBaseUrlSavedFlash.value = true;
+  setTimeout(() => {
+    haBaseUrlSavedFlash.value = false;
+  }, 2000);
+}
+
+function haHandleSaveModel(): void {
+  haSaveModel(haModelInput.value);
+  haModelSavedFlash.value = true;
+  setTimeout(() => {
+    haModelSavedFlash.value = false;
   }, 2000);
 }
 
@@ -506,6 +557,105 @@ onMounted(() => {
           必须支持 Vision（图片输入）+ JSON 强制输出。
           非官方模型若 <code>response_format: json_object</code> 不稳,
           可能导致解析失败。
+        </p>
+      </div>
+    </section>
+
+    <!-- § AI 健康助手配置 (v3.2) -->
+    <section class="settings-section">
+      <h2 class="section-title">AI 健康助手配置</h2>
+      <p class="section-desc">
+        化验单解读 + 用药指南使用独立的 OpenAI 兼容配置,
+        可与上方 OCR 处理使用不同中转站或模型（如纯文本任务无需 Vision,
+        可切更便宜的文本模型）。配置独立存储, 互不影响。
+      </p>
+
+      <!-- API Key -->
+      <div class="config-row">
+        <label class="config-label">API Key</label>
+        <div class="api-key-row">
+          <input
+            v-model="haApiKeyInput"
+            :type="haShowApiKey ? 'text' : 'password'"
+            class="api-key-input"
+            placeholder="sk-..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="haShowApiKey = !haShowApiKey"
+          >{{ haShowApiKey ? '隐藏' : '显示' }}</button>
+        </div>
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="haHandleSaveApiKey"
+          >保存 API Key</button>
+          <button
+            v-if="haHasKey"
+            type="button"
+            class="btn btn-secondary"
+            @click="haHandleClearApiKey"
+          >清除</button>
+          <span v-if="haApiKeySavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p v-if="haHasKey" class="msg msg-success">
+          ✓ 已配置健康助手 API Key。
+        </p>
+        <p v-else class="msg msg-info">
+          未配置。未配置时健康助手相关按钮（化验解读 / 用药指南）点击会提示。
+        </p>
+      </div>
+
+      <!-- Base URL -->
+      <div class="config-row">
+        <label class="config-label">Base URL</label>
+        <input
+          v-model="haBaseUrlInput"
+          type="text"
+          class="text-input"
+          placeholder="https://api.openai.com/v1 或 https://ccapi.us/v1"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="haHandleSaveBaseUrl"
+          >保存 Base URL</button>
+          <span v-if="haBaseUrlSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p class="msg msg-info">
+          只填到 <code>/v1</code>。可与上方相同, 也可切换不同中转站。
+        </p>
+      </div>
+
+      <!-- Model -->
+      <div class="config-row">
+        <label class="config-label">Model</label>
+        <input
+          v-model="haModelInput"
+          type="text"
+          class="text-input"
+          placeholder="gpt-4o / gpt-5.5 / deepseek-chat / claude-3-5-sonnet 等"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="action-row">
+          <button
+            type="button"
+            class="btn btn-primary"
+            @click="haHandleSaveModel"
+          >保存 Model</button>
+          <span v-if="haModelSavedFlash" class="saved-flash">✓ 已保存</span>
+        </div>
+        <p class="msg msg-info">
+          健康助手任务是纯文本输入, 不要求 Vision。
+          可用更强的推理模型（如 gpt-5.5）提升解读质量。
         </p>
       </div>
     </section>

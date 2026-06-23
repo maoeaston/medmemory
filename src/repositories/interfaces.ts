@@ -148,6 +148,39 @@ export interface AiContent {
   created_at: string;
 }
 
+/** AI 解读类型 (ai_interpretations.kind, 对应 PRD v3.2 §2) */
+export type AiInterpretationKind = 'lab' | 'medication';
+
+/**
+ * AI 健康助手解读结果 (ai_interpretations 表, v3.2 新增)。
+ * 双 FK: lab 解读填 attachment_id, medication 解读填 medicine_id, 互斥。
+ * content_json 存完整 LabInterpretation / MedicationGuide JSON
+ * (具体结构见 src/lib/ai/AiProvider.ts 的 LabInterpretation / MedicationGuide interface)。
+ */
+export interface AiInterpretation {
+  id: number;
+  attachment_id: number | null;
+  medicine_id: number | null;
+  kind: AiInterpretationKind;
+  content_json: string;
+  provider: string;
+  model: string;
+  prompt_version: string;
+  created_at: string;
+}
+
+export interface AiInterpretationCreateInput {
+  /** lab 解读必填, medication 解读留 null */
+  attachment_id: number | null;
+  /** medication 解读必填, lab 解读留 null */
+  medicine_id: number | null;
+  kind: AiInterpretationKind;
+  content_json: string;
+  provider: string;
+  model: string;
+  prompt_version: string;
+}
+
 /**
  * 化验单指标 (report_indicators 表, v2 新增)。
  * 一份化验单 attachment → N 条 LabIndicator, display_order 保留原报告顺序。
@@ -438,6 +471,25 @@ export interface AiContentRepository {
    */
   listPendingSuggestionsByEvent(eventId: number): Promise<AiContent[]>;
   delete(id: number): Promise<void>;
+}
+
+// ============================================================
+// 7c. AiInterpretationRepository
+// 对应 PRD v3.2: AI 健康助手 (化验单解读 + 用药指南) 结果持久化
+// 双 FK 表, lab 走 attachment_id, medication 走 medicine_id (互斥, DB CHECK 强制)
+// 无 update (重新生成 = create 新版本, 老版本保留作历史对比)
+// ============================================================
+export interface AiInterpretationRepository {
+  create(input: AiInterpretationCreateInput): Promise<AiInterpretation>;
+  getById(id: number): Promise<AiInterpretation | null>;
+  /** lab 解读最新版本 (EventDetailView 进入时读, 避免重复调 AI) */
+  getLatestByAttachment(attachmentId: number): Promise<AiInterpretation | null>;
+  /** medication 解读最新版本 (MedicinesView 进入时读) */
+  getLatestByMedicine(medicineId: number): Promise<AiInterpretation | null>;
+  /** lab_indicators 重跑时连带删 (useAiProcess.writeResults 调, invalidate 旧解读) */
+  deleteByAttachment(attachmentId: number): Promise<void>;
+  /** medicine 删除/重命名时连带删 (走 FK CASCADE 已自动, 应用层调幂等) */
+  deleteByMedicine(medicineId: number): Promise<void>;
 }
 
 // ============================================================

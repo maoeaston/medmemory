@@ -27,6 +27,10 @@ import {
   type AiProvider,
   type AiProcessingResult,
   type LabIndicatorExtracted,
+  type LabInterpretation,
+  type LabInterpretationRequest,
+  type MedicationGuide,
+  type MedicationGuideRequest,
   type MultimodalRequest,
   type SuggestedHealthProblem,
   type TextSuggestionRequest,
@@ -204,41 +208,24 @@ export class OpenAiProvider implements AiProvider {
   }
 
   /**
-   * 纯文本事件推荐健康问题（v3.1 PRD 7.4 体验完善）。
+   * 纯文本 Chat Completion 共用方法（v3.2 抽出）。
    *
-   * 与 processMedicalDocument 区别:
-   *   - messages 无 image_url, user content 是拼好的事件上下文字符串
-   *   - 输出只解析 suggested_health_problems 字段
-   *   - 复用 validateSuggestedHealthProblems 校验（非法元素降级丢弃）
+   * system + user (string) 两段消息, response_format 强制 JSON, temperature 0.2。
+   * 返回 choices[0].message.content 原始字符串, 由调用方各自 parse + validate。
    *
-   * fetch/error/JSON 解析逻辑与 processMedicalDocument 类似, 但 messages 类型不同,
-   * 不强行抽出共用方法（v3.2 加 agent 时再统一重构 callJsonCompletion）。
+   * processMedicalDocument 用 image_url 不走此方法（content 类型不同）。
    */
-  async suggestHealthProblemsFromText(
-    req: TextSuggestionRequest,
-  ): Promise<SuggestedHealthProblem[]> {
-    const contextLines: string[] = [
-      `event_type: ${req.event_type}`,
-      `title: ${req.title}`,
-    ];
-    if (req.summary) {
-      contextLines.push(`summary: ${req.summary}`);
-    }
-    if (req.memberAge !== undefined) {
-      contextLines.push(`member_age: ${req.memberAge}`);
-    }
-    if (req.memberGender) {
-      contextLines.push(`member_gender: ${req.memberGender}`);
-    }
-    const userContent = contextLines.join('\n');
-
+  private async callChatCompletion(
+    systemPrompt: string,
+    userContent: string,
+  ): Promise<string> {
     const body = {
       model: this.model,
       messages: [
-        { role: 'system' as const, content: req.prompt },
+        { role: 'system' as const, content: systemPrompt },
         { role: 'user' as const, content: userContent },
       ],
-      response_format: { type: 'json_object' },
+      response_format: { type: 'json_object' as const },
       temperature: 0.2,
     };
 
@@ -282,17 +269,136 @@ export class OpenAiProvider implements AiProvider {
         resp.status,
       );
     }
+    return rawContent;
+  }
+
+  /**
+   * 纯文本事件推荐健康问题（v3.1 PRD 7.4 体验完善）。
+   *
+   * 与 processMedicalDocument 区别:
+   *   - messages 无 image_url, user content 是拼好的事件上下文字符串
+   *   - 输出只解析 suggested_health_problems 字段
+   *   - 复用 validateSuggestedHealthProblems 校验（非法元素降级丢弃）
+   */
+  async suggestHealthProblemsFromText(
+    req: TextSuggestionRequest,
+  ): Promise<SuggestedHealthProblem[]> {
+    const contextLines: string[] = [
+      `event_type: ${req.event_type}`,
+      `title: ${req.title}`,
+    ];
+    if (req.summary) {
+      contextLines.push(`summary: ${req.summary}`);
+    }
+    if (req.memberAge !== undefined) {
+      contextLines.push(`member_age: ${req.memberAge}`);
+    }
+    if (req.memberGender) {
+      contextLines.push(`member_gender: ${req.memberGender}`);
+    }
+    const userContent = contextLines.join('\n');
+
+    const rawContent = await this.callChatCompletion(req.prompt, userContent);
 
     let parsed: { suggested_health_problems?: unknown };
     try {
       parsed = JSON.parse(rawContent) as typeof parsed;
     } catch (e) {
       throw new AiProviderError(
-        `GPT 输出 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}。原始: ${rawContent.slice(0, 200)}`,
+        `GPT 输出 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`,
         'bad-response',
       );
     }
     return validateSuggestedHealthProblems(parsed.suggested_health_problems);
+  }
+
+  /**
+   * 化验单解读（v3.2 PRD §2.1）。
+   *
+   * 输入已结构化指标 + 上下文, 输出参考性解读 + 建议就诊科室。
+   * 紧急程度 urgency 是 LLM 软判断, 应用层 criticalValue.ts 硬规则会覆盖。
+   */
+  async interpretLabResult(
+    req: LabInterpretationRequest,
+  ): Promise<LabInterpretation> {
+    const indicatorsJson = JSON.stringify(
+      req.indicators.map((i) => ({
+        name_cn: i.name_cn,
+        name_en: i.name_en,
+        result: i.result,
+        unit: i.unit,
+        reference_range: i.reference_range,
+        abnormal_tag: i.abnormal_tag,
+      })),
+    );
+    const contextLines: string[] = [`indicators: ${indicatorsJson}`];
+    if (req.eventSummary) {
+      contextLines.push(`event_summary: ${req.eventSummary}`);
+    }
+    if (req.memberAge !== undefined) {
+      contextLines.push(`member_age: ${req.memberAge}`);
+    }
+    if (req.memberGender) {
+      contextLines.push(`member_gender: ${req.memberGender}`);
+    }
+    const userContent = contextLines.join('\n');
+
+    const rawContent = await this.callChatCompletion(req.prompt, userContent);
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(rawContent) as Record<string, unknown>;
+    } catch (e) {
+      throw new AiProviderError(
+        `化验解读 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`,
+        'bad-response',
+      );
+    }
+    return parseLabInterpretation(parsed);
+  }
+
+  /**
+   * 用药指南（v3.2 PRD §2.2）。
+   *
+   * 输入药物 + 同成员其他药物 + 既往健康问题, 输出参考性用药指南。
+   * 不开新处方, 不算个人剂量, 仅解读已存在药物。
+   */
+  async guideMedication(req: MedicationGuideRequest): Promise<MedicationGuide> {
+    const contextLines: string[] = [
+      `medicine: ${JSON.stringify(req.medicine)}`,
+    ];
+    if (req.otherMedicines.length > 0) {
+      contextLines.push(`other_medicines: ${JSON.stringify(req.otherMedicines)}`);
+    } else {
+      contextLines.push('other_medicines: []');
+    }
+    if (req.healthProblems.length > 0) {
+      contextLines.push(
+        `health_problems: ${JSON.stringify(req.healthProblems)}`,
+      );
+    } else {
+      contextLines.push('health_problems: []');
+    }
+    if (req.memberAge !== undefined) {
+      contextLines.push(`member_age: ${req.memberAge}`);
+    }
+    if (req.memberGender) {
+      contextLines.push(`member_gender: ${req.memberGender}`);
+    }
+    const userContent = contextLines.join('\n');
+
+    const rawContent = await this.callChatCompletion(req.prompt, userContent);
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(rawContent) as Record<string, unknown>;
+    } catch (e) {
+      throw new AiProviderError(
+        `用药指南 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`,
+        'bad-response',
+      );
+    }
+    return parseMedicationGuide(parsed, req.otherMedicines);
   }
 }
 
@@ -609,4 +715,290 @@ function validateSuggestedHealthProblems(
     });
   }
   return result;
+}
+
+// ============================================================
+// v3.2 健康助手 helpers — LabInterpretation / MedicationGuide
+// ============================================================
+
+/**
+ * 科室白名单（PRD 附录 A）。
+ * suggestedDepartments 必须从白名单选, 不在白名单的丢弃（防 LLM 编造）。
+ */
+const DEPARTMENT_WHITELIST: ReadonlySet<string> = new Set([
+  '心血管内科',
+  '心内科',
+  '神经内科',
+  '呼吸内科',
+  '消化内科',
+  '内分泌科',
+  '肾内科',
+  '风湿免疫科',
+  '血液内科',
+  '感染科',
+  '肿瘤科',
+  '普外科',
+  '心胸外科',
+  '神经外科',
+  '泌尿外科',
+  '骨科',
+  '皮肤科',
+  '妇科',
+  '产科',
+  '儿科',
+  '儿内科',
+  '儿外科',
+  '眼科',
+  '耳鼻喉科',
+  '口腔科',
+  '急诊科',
+  '全科',
+  '中医科',
+  '老年科',
+  '精神心理科',
+]);
+
+/**
+ * 科室同义词归一化表（LLM 可能输出"心血管内科", 应用层归一化为"心内科"）。
+ * key = 输入别名, value = 白名单内的规范名。
+ */
+const DEPARTMENT_SYNONYMS: ReadonlyMap<string, string> = new Map([
+  ['心血管内科', '心内科'],
+  ['心血管科', '心内科'],
+  ['心脏科', '心内科'],
+  ['神经科', '神经内科'],
+  ['呼吸科', '呼吸内科'],
+  ['消化科', '消化内科'],
+  ['内分泌科', '内分泌科'], // 自映射保持
+  ['肾脏科', '肾内科'],
+  ['风湿科', '风湿免疫科'],
+  ['血液科', '血液内科'],
+  ['传染科', '感染科'],
+  ['普通外科', '普外科'],
+  ['外科', '普外科'],
+  ['心外', '心胸外科'],
+  ['胸外科', '心胸外科'],
+  ['脑外科', '神经外科'],
+  ['泌尿科', '泌尿外科'],
+  ['耳鼻喉', '耳鼻喉科'],
+  ['ENT', '耳鼻喉科'],
+  ['口腔', '口腔科'],
+  ['牙科', '口腔科'],
+  ['精神科', '精神心理科'],
+  ['心理科', '精神心理科'],
+  ['老人科', '老年科'],
+]);
+
+/**
+ * 校验 suggestedDepartments（PRD §2.1 白名单 + 同义词归一化）。
+ *
+ * 规则:
+ *   1. 同义词先归一化（"心血管内科" → "心内科"）
+ *   2. 不在白名单的科室丢弃（防 LLM 编造如"免疫科""传染内科"）
+ *   3. 去重保序
+ *
+ * 校验失败降级（不抛错） — 单条坏数据不应导致整批 FAILED。
+ */
+function validateDepartments(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string') continue;
+    const trimmed = item.trim();
+    if (trimmed === '') continue;
+    // 同义词归一化
+    const normalized = DEPARTMENT_SYNONYMS.get(trimmed) ?? trimmed;
+    if (!DEPARTMENT_WHITELIST.has(normalized)) continue;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+/**
+ * LabInterpretation 合法 urgency 值。
+ */
+const VALID_URGENCY_LEVELS = new Set([
+  'observe',
+  'suggest_visit',
+  'urgent_visit',
+]);
+
+/**
+ * 解析 + 校验 LabInterpretation 输出。
+ *
+ * 校验失败策略:
+ *   - urgency 非法 → 降级 'observe'（最保守）
+ *   - abnormalExplanations 元素非法 → 丢弃（不抛错）
+ *   - suggestedDepartments → validateDepartments 白名单过滤
+ *   - overallImpression/recommendation 缺失 → 空串兜底
+ */
+function parseLabInterpretation(
+  parsed: Record<string, unknown>,
+): LabInterpretation {
+  const overallImpression =
+    typeof parsed.overallImpression === 'string'
+      ? parsed.overallImpression.trim()
+      : '';
+
+  const urgencyRaw = parsed.urgency;
+  const urgency: LabInterpretation['urgency'] =
+    typeof urgencyRaw === 'string' && VALID_URGENCY_LEVELS.has(urgencyRaw)
+      ? (urgencyRaw as LabInterpretation['urgency'])
+      : 'observe';
+
+  // abnormalExplanations: 数组, 元素非法丢弃
+  const abnormalExplanations: LabInterpretation['abnormalExplanations'] = [];
+  if (Array.isArray(parsed.abnormalExplanations)) {
+    for (const item of parsed.abnormalExplanations) {
+      if (typeof item !== 'object' || item === null) continue;
+      const obj = item as Record<string, unknown>;
+      const indicatorName = obj.indicatorName;
+      const interpretation = obj.interpretation;
+      if (
+        typeof indicatorName !== 'string' ||
+        indicatorName.trim() === '' ||
+        typeof interpretation !== 'string' ||
+        interpretation.trim() === ''
+      ) {
+        continue;
+      }
+      const possibleCauses = Array.isArray(obj.possibleCauses)
+        ? obj.possibleCauses.filter(
+            (c): c is string => typeof c === 'string' && c.trim() !== '',
+          )
+        : [];
+      abnormalExplanations.push({
+        indicatorName: indicatorName.trim(),
+        interpretation: interpretation.trim(),
+        possibleCauses,
+      });
+    }
+  }
+
+  const recommendation =
+    typeof parsed.recommendation === 'string'
+      ? parsed.recommendation.trim()
+      : '';
+
+  const suggestedDepartments = validateDepartments(
+    parsed.suggestedDepartments,
+  );
+
+  return {
+    overallImpression,
+    urgency,
+    abnormalExplanations,
+    recommendation,
+    suggestedDepartments,
+  };
+}
+
+/**
+ * MedicationGuide 合法 severity 值。
+ */
+const VALID_INTERACTION_SEVERITY = new Set(['mild', 'moderate', 'severe']);
+
+/**
+ * 校验 interactions 数组（PRD §2.2 防编造）。
+ *
+ * 规则:
+ *   1. otherMedicine 必须在输入 otherMedicines[].name 子集内（防 LLM 编造药物）
+ *   2. description 非空字符串
+ *   3. severity 非法 → 降级 'moderate'（保守）
+ *   4. 同一 otherMedicine 多条保留（不同方面相互作用）
+ *
+ * 校验失败降级（丢弃非法元素）, 不抛错。
+ */
+function validateInteractions(
+  raw: unknown,
+  otherMedicines: Array<{ name: string }>,
+): MedicationGuide['interactions'] {
+  if (!Array.isArray(raw)) return [];
+  const allowedNames = new Set(otherMedicines.map((m) => m.name));
+  const result: MedicationGuide['interactions'] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const obj = item as Record<string, unknown>;
+    const otherMedicine = obj.otherMedicine;
+    if (
+      typeof otherMedicine !== 'string' ||
+      !allowedNames.has(otherMedicine)
+    ) {
+      continue; // 编造药物直接丢
+    }
+    const description = obj.description;
+    if (typeof description !== 'string' || description.trim() === '') continue;
+
+    const severityRaw = obj.severity;
+    const severity: MedicationGuide['interactions'][number]['severity'] =
+      typeof severityRaw === 'string' &&
+      VALID_INTERACTION_SEVERITY.has(severityRaw)
+        ? (severityRaw as 'mild' | 'moderate' | 'severe')
+        : 'moderate';
+
+    result.push({
+      otherMedicine,
+      description: description.trim(),
+      severity,
+    });
+  }
+  return result;
+}
+
+/**
+ * 解析 + 校验 MedicationGuide 输出。
+ *
+ * 校验失败策略:
+ *   - interactions → validateInteractions（防编造, otherMedicine 必须在输入子集）
+ *   - 数组字段非法元素丢弃
+ *   - requiresPrescription 非布尔 → 降级 true（保守, 视为需处方）
+ *   - overview/usualDosage 缺失 → 空串兜底
+ */
+function parseMedicationGuide(
+  parsed: Record<string, unknown>,
+  otherMedicines: Array<{ name: string }>,
+): MedicationGuide {
+  const overview =
+    typeof parsed.overview === 'string' ? parsed.overview.trim() : '';
+
+  const usualDosage =
+    typeof parsed.usualDosage === 'string' ? parsed.usualDosage.trim() : '';
+
+  const commonSideEffects = Array.isArray(parsed.commonSideEffects)
+    ? parsed.commonSideEffects.filter(
+        (s): s is string => typeof s === 'string' && s.trim() !== '',
+      )
+    : [];
+
+  const seriousSideEffects = Array.isArray(parsed.seriousSideEffects)
+    ? parsed.seriousSideEffects.filter(
+        (s): s is string => typeof s === 'string' && s.trim() !== '',
+      )
+    : [];
+
+  const interactions = validateInteractions(parsed.interactions, otherMedicines);
+
+  const redFlags = Array.isArray(parsed.redFlags)
+    ? parsed.redFlags.filter(
+        (s): s is string => typeof s === 'string' && s.trim() !== '',
+      )
+    : [];
+
+  const requiresPrescription =
+    typeof parsed.requiresPrescription === 'boolean'
+      ? parsed.requiresPrescription
+      : true; // 不确定时保守为 true
+
+  return {
+    overview,
+    usualDosage,
+    commonSideEffects,
+    seriousSideEffects,
+    interactions,
+    redFlags,
+    requiresPrescription,
+  };
 }
