@@ -1,0 +1,17 @@
+# Cloudflare Pages 头配置
+#
+# 这两个头是 sqlite-wasm OPFS + SharedArrayBuffer 的硬约束:
+#   - COOP same-origin: 隔离 top-level browsing context
+#   - COEP require-corp: 隔离 subresource 加载, 启用 crossOriginIsolated
+#
+# 没有这两个头, 浏览器不会启用 crossOriginIsolated,
+# sqlite-wasm 的 OPFS 多线程会直接挂掉 (SharedArrayBuffer undefined).
+#
+# 跨源 AI fetch 影响: require-corp 要求响应带 CORP 或 CORS 头.
+# OpenAI 兼容 API (api.openai.com / ccapi.us / deepseek) 都返回
+# Access-Control-Allow-Origin, 所以 fetch 走 CORS 机制不受影响.
+# 如果某 provider 不返 CORS 头, 改为 credentialless (更宽松, 见 Cloudflare 文档).
+
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp

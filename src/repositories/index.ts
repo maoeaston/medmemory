@@ -128,6 +128,7 @@ export type {
   SearchFilter,
   SearchRepository,
   SearchResult,
+  TrendPoint,
 } from '@/repositories/interfaces';
 
 export { RepositoryError } from '@/repositories/base';

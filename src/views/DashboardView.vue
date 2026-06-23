@@ -19,6 +19,7 @@ import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
 import MemberCard from '@/components/dashboard/MemberCard.vue';
 import MedicineWarningPanel from '@/components/dashboard/MedicineWarningPanel.vue';
 import RecentEventsPanel from '@/components/dashboard/RecentEventsPanel.vue';
+import AlertBanner from '@/components/dashboard/AlertBanner.vue';
 
 // 每个数据源独立存: value + error, 这样部分失败不阻塞
 const pendingCount = ref<number | null>(null);
@@ -33,6 +34,10 @@ const medsError = ref<string | null>(null);
 const recentEvents = ref<MedicalEvent[] | null>(null);
 const recentEventsError = ref<string | null>(null);
 
+// v3.3: 复诊提醒
+const upcomingFollowUps = ref<MedicalEvent[] | null>(null);
+const followUpsError = ref<string | null>(null);
+
 // 用 Map 加速 RecentEventsPanel 反查成员名（O(1)）
 const memberMap = ref<Map<number, FamilyMember> | null>(null);
 
@@ -40,11 +45,12 @@ async function loadDashboard(): Promise<void> {
   try {
     const repos = await useRepositories();
 
-    const [pending, m, meds, recent] = await Promise.allSettled([
+    const [pending, m, meds, recent, followUps] = await Promise.allSettled([
       repos.inbox.countPending(),
       repos.familyMember.list(),
       repos.medicine.listExpiring(30),
       repos.medicalEvent.listRecent(10),
+      repos.medicalEvent.listUpcomingFollowUps(30),
     ]);
 
     if (pending.status === 'fulfilled') {
@@ -81,6 +87,15 @@ async function loadDashboard(): Promise<void> {
           ? recent.reason.message
           : String(recent.reason);
     }
+
+    if (followUps.status === 'fulfilled') {
+      upcomingFollowUps.value = followUps.value;
+    } else {
+      followUpsError.value =
+        followUps.reason instanceof Error
+          ? followUps.reason.message
+          : String(followUps.reason);
+    }
   } catch (e) {
     // 理论上 Promise.allSettled 不会 reject; 此处 catch 防御 useRepositories 失败
     membersError.value = e instanceof Error ? e.message : String(e);
@@ -95,6 +110,13 @@ onMounted(() => {
 <template>
   <main class="dashboard">
     <DashboardHeader :pending-count="pendingCount" />
+
+    <AlertBanner
+      :expiring-meds="expiringMeds"
+      :upcoming-follow-ups="upcomingFollowUps"
+      :member-map="memberMap"
+      :load-error="medsError ?? followUpsError"
+    />
 
     <p v-if="pendingError" class="msg msg-warning">
       待整理计数加载失败: {{ pendingError }}
@@ -146,13 +168,22 @@ onMounted(() => {
         :load-error="recentEventsError"
       />
     </section>
+
+    <RouterLink to="/trends" class="trends-entry">
+      <span class="trends-icon">📈</span>
+      <span class="trends-text">
+        <strong>查看健康趋势</strong>
+        <small>白细胞 / 血红蛋白 / 血糖 等指标随时间变化</small>
+      </span>
+      <span class="trends-arrow">→</span>
+    </RouterLink>
   </main>
 </template>
 
 <style scoped>
 .dashboard {
   padding: 1.5rem;
-  max-width: 920px;
+  max-width: var(--space-page-max-wide);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -160,9 +191,9 @@ onMounted(() => {
 }
 
 .empty-members {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
   padding: 2.5rem 1.5rem;
   text-align: center;
   display: flex;
@@ -173,31 +204,31 @@ onMounted(() => {
 
 .empty-title {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
 }
 
 .empty-hint {
   margin: 0;
-  font-size: 0.9rem;
-  color: #6b7280;
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
   max-width: 420px;
 }
 
 .empty-cta {
   margin-top: 1rem;
   padding: 0.6rem 1.2rem;
-  background: #2563eb;
+  background: var(--color-primary);
   color: white;
   text-decoration: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.92rem;
+  border-radius: var(--radius-button);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-input);
 }
 
 .empty-cta:hover {
-  background: #1d4ed8;
+  background: var(--color-primary-hover);
 }
 
 .member-cards {
@@ -212,6 +243,50 @@ onMounted(() => {
   gap: 0.75rem;
 }
 
+.trends-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.trends-entry:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.trends-icon {
+  font-size: 1.4rem;
+}
+
+.trends-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+}
+
+.trends-text strong {
+  font-size: var(--font-size-input);
+  color: var(--color-text-primary);
+}
+
+.trends-text small {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.trends-arrow {
+  color: var(--color-text-faint);
+  font-size: 1.1rem;
+}
+
 @media (max-width: 720px) {
   .bottom-grid {
     grid-template-columns: 1fr;
@@ -221,23 +296,23 @@ onMounted(() => {
 .msg {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-body);
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 
 .msg-warning {
-  background: #fffbeb;
-  color: #92400e;
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
 }
 
 .hint {
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
   padding: 0.5rem 0;
 }
 </style>

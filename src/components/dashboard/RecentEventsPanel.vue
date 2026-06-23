@@ -4,7 +4,11 @@
 //
 // 接受 props.events 为父组件已查好的 listRecent(10) 结果
 // 关联成员名通过 props.memberMap 反查（O(1) 查找）
+//
+// 每行可点击进入 /events/:id 详情（含附件 / 指标 / AI 摘要）— v3.3 入口修复
 import { computed } from 'vue';
+import { RouterLink } from 'vue-router';
+import EventTypeBadge from '@/components/ui/EventTypeBadge.vue';
 import type { FamilyMember, MedicalEvent } from '@/repositories';
 
 const props = defineProps<{
@@ -12,16 +16,6 @@ const props = defineProps<{
   memberMap: Map<number, FamilyMember> | null;
   loadError?: string | null;
 }>();
-
-const eventTypeLabels: Record<MedicalEvent['event_type'], string> = {
-  outpatient: '就诊',
-  emergency: '急诊',
-  checkup: '体检',
-  followup: '复诊',
-  vaccine: '疫苗',
-  hospitalization: '住院',
-  other: '其他',
-};
 
 function formatDate(iso: string): string {
   const datePart = iso.slice(0, 10);
@@ -63,12 +57,13 @@ const hasEvents = computed(
         :key="event.id"
         class="event-item"
       >
-        <span class="event-date">{{ formatDate(event.event_date) }}</span>
-        <span class="event-type">
-          {{ eventTypeLabels[event.event_type] }}
-        </span>
-        <span class="event-member">{{ memberName(event.member_id) }}</span>
-        <span class="event-title">{{ event.title }}</span>
+        <RouterLink :to="`/events/${event.id}`" class="event-link">
+          <span class="event-date">{{ formatDate(event.event_date) }}</span>
+          <EventTypeBadge :type="event.event_type" />
+          <span class="event-member">{{ memberName(event.member_id) }}</span>
+          <span class="event-title">{{ event.title }}</span>
+          <span class="event-arrow">›</span>
+        </RouterLink>
       </li>
     </ul>
   </section>
@@ -76,10 +71,10 @@ const hasEvents = computed(
 
 <style scoped>
 .recent-panel {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  padding: var(--space-card-padding);
 }
 
 .panel-header {
@@ -88,26 +83,26 @@ const hasEvents = computed(
 
 .panel-title {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: var(--font-size-panel-title);
+  font-weight: var(--font-weight-semibold);
 }
 
 .hint {
-  color: #9ca3af;
+  color: var(--color-text-faint);
   font-size: 0.88rem;
 }
 
 .empty-state {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.88rem;
   padding: 0.75rem;
-  background: #f9fafb;
-  border-radius: 4px;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-badge);
   text-align: center;
 }
 
 .link {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: none;
 }
 
@@ -125,61 +120,70 @@ const hasEvents = computed(
 }
 
 .event-item {
-  display: grid;
-  grid-template-columns: 3rem 3rem 4rem 1fr;
-  gap: 0.5rem;
-  align-items: baseline;
   padding: 0.35rem 0;
-  font-size: 0.88rem;
-  border-bottom: 1px dashed #f3f4f6;
+  border-bottom: 1px dashed var(--color-bg-muted);
 }
 
 .event-item:last-child {
   border-bottom: none;
 }
 
+.event-link {
+  display: grid;
+  grid-template-columns: 3rem auto 4rem 1fr auto;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+  text-decoration: none;
+  color: inherit;
+  padding: 0.1rem 0.3rem;
+  margin: -0.1rem -0.3rem;
+  border-radius: var(--radius-badge);
+  transition: background 0.15s;
+}
+
+.event-link:hover {
+  background: var(--color-bg-page);
+}
+
 .event-date {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
-.event-type {
-  font-size: 0.78rem;
-  color: #2563eb;
-  background: #eff6ff;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  text-align: center;
-  white-space: nowrap;
-}
-
 .event-member {
-  color: #4b5563;
-  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
 }
 
 .event-title {
-  color: #1f2937;
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.event-arrow {
+  color: var(--color-border-input);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
 .msg {
   margin: 0;
   padding: 0.5rem 0.7rem;
-  border-radius: 4px;
+  border-radius: var(--radius-badge);
   font-size: 0.88rem;
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 
 @media (max-width: 540px) {
-  .event-item {
-    grid-template-columns: 3rem 3rem 1fr;
+  .event-link {
+    grid-template-columns: 3rem auto 1fr auto;
     grid-template-rows: auto auto;
   }
   .event-member {
@@ -189,8 +193,8 @@ const hasEvents = computed(
   .event-title {
     grid-column: 1 / -1;
     grid-row: 2;
-    color: #6b7280;
-    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
   }
 }
 </style>

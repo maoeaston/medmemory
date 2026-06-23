@@ -196,6 +196,29 @@ export interface MedicationGuide {
 }
 
 /**
+ * 药品包装扫描结果（v3.4 PRD 药品扫描）。
+ *
+ * 不落库 — 扫描完直接 pre-fill MedicineForm, 用户提交走 MedicineCreateInput。
+ * confidence 让 UI 提示用户重点复核 medium/low 字段。
+ */
+export interface MedicinePackageScanResult {
+  /** 药品名称（通用名优先, 可能含商品名） */
+  name: string;
+  /** 简短适应症, null = 未识别 */
+  usage: string | null;
+  /** 有效期 YYYY-MM 或 null */
+  expiry_date: string | null;
+  /** 用法用量 / 规格 / 批准文号 / OTC 标识等, null = 无额外信息 */
+  extra_info: string | null;
+  /** 每字段置信度, medium/low 时 UI 应提示用户复核 */
+  confidence: {
+    name: 'high' | 'medium' | 'low';
+    usage: 'high' | 'medium' | 'low';
+    expiry_date: 'high' | 'medium' | 'low';
+  };
+}
+
+/**
  * AI Provider 抽象。每个 provider 只管"图片 → 三输出"这一件事。
  * 状态机推进 / ai_contents 写入 / tags 落盘由 useAiProcess 编排。
  */
@@ -227,6 +250,15 @@ export interface AiProvider {
    * 不开新处方, 不算个人剂量, 仅解读已存在药物。
    */
   guideMedication(req: MedicationGuideRequest): Promise<MedicationGuide>;
+  /**
+   * 药品包装扫描（v3.4）。
+   *
+   * 输入药品包装图片, 输出结构化识别结果用于 pre-fill 表单。
+   * 不落库, 不解读 — 仅 OCR + 字段提取。
+   */
+  scanMedicinePackage(
+    req: MultimodalRequest,
+  ): Promise<MedicinePackageScanResult>;
 }
 
 /**

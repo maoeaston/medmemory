@@ -10,16 +10,14 @@
 // 与 EventsView 的区别:
 //   - EventsView: listRecent(50) 按 created_at DESC（"最近录入"）
 //   - TimelineView: listAll() 按 event_date DESC（"按发生时间回溯"）, 月分组
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useRepositories } from '@/composables/useRepositories';
-import type {
-  EventType,
-  FamilyMember,
-  MedicalEvent,
-} from '@/repositories';
+import EventTypeBadge from '@/components/ui/EventTypeBadge.vue';
+import type { FamilyMember, MedicalEvent } from '@/repositories';
 
 const router = useRouter();
+const route = useRoute();
 
 const events = ref<MedicalEvent[]>([]);
 const members = ref<FamilyMember[]>([]);
@@ -27,7 +25,25 @@ const loadError = ref<string | null>(null);
 const isLoading = ref(false);
 
 // null = 全部成员; number = 仅该成员
-const selectedMemberId = ref<number | null>(null);
+// v3.3 入口修复: 从 ?member=N query 初始化（MemberCard 跳转过来）
+const queryMember = route.query.member;
+const initialMember =
+  queryMember !== undefined && /^\d+$/.test(String(queryMember))
+    ? Number(queryMember)
+    : null;
+const selectedMemberId = ref<number | null>(initialMember);
+
+// 监听 query 变化（用户从 MemberCard 跳过来后, 或在 Timeline 内手动改 query）
+watch(
+  () => route.query.member,
+  (val) => {
+    if (val !== undefined && /^\d+$/.test(String(val))) {
+      selectedMemberId.value = Number(val);
+    } else if (val === undefined || val === '') {
+      // 不主动清空: 用户从 select 选「全家」也会触发, 但 select 已经改了 selectedMemberId
+    }
+  },
+);
 
 const memberNameMap = computed(() => {
   const m = new Map<number, { name: string; nickname: string | null }>();
@@ -36,16 +52,6 @@ const memberNameMap = computed(() => {
   }
   return m;
 });
-
-const eventTypeLabel: Record<EventType, string> = {
-  outpatient: '门诊',
-  emergency: '急诊',
-  checkup: '体检',
-  followup: '复诊',
-  vaccine: '疫苗',
-  hospitalization: '住院',
-  other: '其他',
-};
 
 /** 按 selectedMemberId 过滤; null = 不过滤 */
 const filteredEvents = computed(() => {
@@ -101,6 +107,15 @@ function openDetail(id: number): void {
   void router.push(`/events/${id}`);
 }
 
+/** select 改值时同步到 URL query, 让浏览器后退能回到上一筛选状态 */
+function onMemberSelect(raw: string): void {
+  const id = raw === '' ? null : Number(raw);
+  selectedMemberId.value = id;
+  void router.replace({
+    query: id === null ? {} : { member: String(id) },
+  });
+}
+
 function formatMember(id: number): string {
   const m = memberNameMap.value.get(id);
   if (m === undefined) return `#${id}`;
@@ -135,9 +150,10 @@ onMounted(() => {
 
     <div v-if="!isLoading && !loadError && events.length > 0" class="filters">
       <select
-        v-model.number="selectedMemberId"
+        :value="selectedMemberId"
         class="member-select"
         aria-label="按成员筛选"
+        @change="onMemberSelect(($event.target as HTMLSelectElement).value)"
       >
         <option :value="null">全部成员</option>
         <option
@@ -197,7 +213,7 @@ onMounted(() => {
               </div>
               <div class="event-body">
                 <div class="event-title-row">
-                  <span class="event-type">{{ eventTypeLabel[ev.event_type] }}</span>
+                  <EventTypeBadge :type="ev.event_type" />
                   <span class="event-title">{{ ev.title }}</span>
                 </div>
                 <div class="event-meta">
@@ -220,7 +236,7 @@ onMounted(() => {
 <style scoped>
 .timeline-view {
   padding: 1.5rem;
-  max-width: 720px;
+  max-width: var(--space-page-max-width);
   margin: 0 auto;
 }
 
@@ -233,17 +249,17 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
 }
 
 .count-badge {
   display: inline-block;
   padding: 0.2rem 0.6rem;
-  background: #eff6ff;
-  color: #1e40af;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   min-width: 1.6rem;
   text-align: center;
 }
@@ -255,50 +271,50 @@ onMounted(() => {
 .member-select {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.92rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-input);
   font-family: inherit;
-  background: white;
-  color: #1f2937;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
   cursor: pointer;
 }
 
 .member-select:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .hint {
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
 
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;
-  background: #f9fafb;
-  border-radius: 6px;
-  color: #6b7280;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-card);
+  color: var(--color-text-muted);
 }
 
 .empty-title {
   margin: 0 0 0.4rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #4b5563;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
 }
 
 .empty-hint {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-body);
 }
 
 .link {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .link:hover {
@@ -313,9 +329,9 @@ onMounted(() => {
   margin: 0 0 0.6rem;
   padding: 0.3rem 0;
   font-size: 1rem;
-  font-weight: 600;
-  color: #1e40af;
-  border-bottom: 1px solid #e5e7eb;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-dark);
+  border-bottom: 1px solid var(--color-border-default);
   position: sticky;
   top: 0;
   background: #fafafa;
@@ -336,9 +352,9 @@ onMounted(() => {
   gap: 1rem;
   align-items: flex-start;
   text-align: left;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
   padding: 0.75rem 1rem;
   cursor: pointer;
   font-family: inherit;
@@ -346,7 +362,7 @@ onMounted(() => {
 }
 
 .event-row:hover {
-  border-color: #2563eb;
+  border-color: var(--color-primary);
   background: #f8FAff;
 }
 
@@ -358,9 +374,9 @@ onMounted(() => {
 }
 
 .date-main {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -378,32 +394,22 @@ onMounted(() => {
   align-items: baseline;
 }
 
-.event-type {
-  flex-shrink: 0;
-  padding: 0.1rem 0.5rem;
-  background: #eff6ff;
-  color: #1e40af;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 .event-title {
   font-size: 1rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 
 .event-meta {
-  font-size: 0.82rem;
-  color: #6b7280;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }
 
 .event-summary {
   margin: 0.15rem 0 0;
-  font-size: 0.85rem;
-  color: #4b5563;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -413,7 +419,7 @@ onMounted(() => {
 
 .event-arrow {
   flex-shrink: 0;
-  color: #d1d5db;
+  color: var(--color-border-input);
   font-size: 1.4rem;
   line-height: 1;
   align-self: center;
@@ -422,12 +428,12 @@ onMounted(() => {
 .msg {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-body);
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 </style>

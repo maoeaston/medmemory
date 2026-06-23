@@ -39,6 +39,7 @@ const ALLOWED_UPDATE_FIELDS = [
   'title',
   'event_type',
   'summary',
+  'next_visit_date',
 ] as const;
 
 interface MedicalEventRow {
@@ -50,6 +51,7 @@ interface MedicalEventRow {
   title: string;
   event_type: EventType;
   summary: string | null;
+  next_visit_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -65,8 +67,8 @@ export class MedicalEventRepositoryImpl implements MedicalEventRepository {
     const id = await executeInsertReturningId(
       this.db,
       `INSERT INTO medical_events (
-        member_id, event_date, hospital, department, title, event_type, summary
-      ) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        member_id, event_date, hospital, department, title, event_type, summary, next_visit_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         input.member_id,
         input.event_date,
@@ -75,6 +77,7 @@ export class MedicalEventRepositoryImpl implements MedicalEventRepository {
         input.title,
         input.event_type,
         input.summary,
+        input.next_visit_date,
       ],
     );
     if (id === null) {
@@ -191,6 +194,29 @@ export class MedicalEventRepositoryImpl implements MedicalEventRepository {
     const rows = await selectMany<MedicalEventRow>(
       this.db,
       `SELECT * FROM medical_events ORDER BY event_date DESC, id DESC`,
+    );
+    return rows.map(toEntity);
+  }
+
+  /**
+   * v3.3: Dashboard 待复诊提醒。
+   *
+   * 走部分索引 idx_events_next_visit (WHERE next_visit_date IS NOT NULL)。
+   * SQLite date('now') / date('now', '+N days') 返回 YYYY-MM-DD, 与 next_visit_date
+   * 字符串比较等价（字符序 = 日期序）。
+   *
+   * 过期（< today）的不返回——用户已错过, 提醒意义不大; 编辑事件去掉日期或改期。
+   */
+  async listUpcomingFollowUps(withinDays: number = 30): Promise<MedicalEvent[]> {
+    const modifier = `+${withinDays} days`;
+    const rows = await selectMany<MedicalEventRow>(
+      this.db,
+      `SELECT * FROM medical_events
+        WHERE next_visit_date IS NOT NULL
+          AND next_visit_date >= date('now')
+          AND next_visit_date <= date('now', ?)
+        ORDER BY next_visit_date ASC, id ASC`,
+      [modifier],
     );
     return rows.map(toEntity);
   }

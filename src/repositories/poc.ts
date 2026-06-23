@@ -181,6 +181,7 @@ export async function runRepositorySmokeTest(): Promise<SmokeTestResult> {
       title: '[RepoTest] 门诊',
       event_type: 'outpatient',
       summary: '例行复诊',
+      next_visit_date: null,
     });
     eventId = e.id;
     return e;

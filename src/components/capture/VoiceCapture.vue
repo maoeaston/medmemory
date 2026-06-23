@@ -199,7 +199,7 @@ onUnmounted(() => {
       <button
         v-else-if="canStop"
         type="button"
-        class="btn btn-danger"
+        class="btn btn-recording"
         @click="handleStop"
       >
         ⏹ 停止
@@ -240,8 +240,8 @@ onUnmounted(() => {
 
 .record-area {
   padding: 1.5rem;
-  background: #f9fafb;
-  border-radius: 6px;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-card);
   text-align: center;
   min-height: 4rem;
   display: flex;
@@ -250,13 +250,13 @@ onUnmounted(() => {
 }
 
 .hint {
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
 
 .recording-indicator {
-  color: #dc2626;
-  font-weight: 600;
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -266,7 +266,7 @@ onUnmounted(() => {
   display: inline-block;
   width: 0.75rem;
   height: 0.75rem;
-  background: #dc2626;
+  background: var(--color-danger);
   border-radius: 50%;
   animation: pulse 1.2s infinite;
 }
@@ -282,8 +282,8 @@ onUnmounted(() => {
 }
 
 .recorded-info {
-  color: #1f2937;
-  font-weight: 500;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .preview audio {
@@ -296,62 +296,20 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 0.7rem 1.4rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.btn-danger {
-  background: #dc2626;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #b91c1c;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
 .msg {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-body);
 }
 
 .msg-ok {
-  background: #ecfdf5;
-  color: #065f46;
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 </style>

@@ -3,8 +3,9 @@
 //   - 顶部固定导航条（移动优先, 单行横向）
 //   - <router-view /> 承载各页面
 //
-// 导航顺序按使用频率: Dashboard / Inbox / **+Capture**（高亮）/ 成员 / 搜索 / 药箱 / 设置
+// 导航顺序按使用频率: Dashboard / Inbox / **+Capture**（高亮）/ 成员 / 时间线 / 搜索 / 药箱 / 设置
 // +Capture 是 MVP 最高优先级入口, 视觉强化
+// 时间线放搜索前: 浏览历史事件的主入口（区别于搜索的关键字定位）
 </script>
 
 <template>
@@ -16,6 +17,7 @@
         <RouterLink to="/inbox" class="nav-link">待整理</RouterLink>
         <RouterLink to="/capture" class="nav-link nav-cta">+ 记录</RouterLink>
         <RouterLink to="/members" class="nav-link">成员</RouterLink>
+        <RouterLink to="/timeline" class="nav-link">时间线</RouterLink>
         <RouterLink to="/search" class="nav-link">搜索</RouterLink>
         <RouterLink to="/medicines" class="nav-link">药箱</RouterLink>
         <RouterLink to="/settings" class="nav-link">设置</RouterLink>
@@ -37,22 +39,20 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color: #1f2937;
-  background: #f9fafb;
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
 }
 </style>
 
 <style scoped>
 .app {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 .app-header {
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border-default);
   padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
@@ -66,7 +66,7 @@ body {
 .brand {
   font-weight: 700;
   font-size: 1.1rem;
-  color: #1f2937;
+  color: var(--color-text-primary);
   text-decoration: none;
 }
 
@@ -78,38 +78,38 @@ body {
 
 .nav-link {
   padding: 0.4rem 0.8rem;
-  border-radius: 6px;
+  border-radius: var(--radius-button);
   text-decoration: none;
-  color: #4b5563;
+  color: var(--color-text-secondary);
   font-size: 0.92rem;
   transition: background 0.15s, color 0.15s;
 }
 
 .nav-link:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--color-bg-muted);
+  color: var(--color-text-primary);
 }
 
 .nav-link.router-link-active {
-  background: #e0e7ff;
-  color: #1e40af;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
   font-weight: 600;
 }
 
 /* + 记录 按钮视觉强化（PRD 7.1: 比 "+ New Event" 更显眼） */
 .nav-cta {
-  background: #2563eb;
-  color: white !important;
+  background: var(--color-primary);
+  color: var(--color-text-on-primary) !important;
   font-weight: 600;
 }
 
 .nav-cta:hover {
-  background: #1d4ed8;
-  color: white !important;
+  background: var(--color-primary-hover);
+  color: var(--color-text-on-primary) !important;
 }
 
 .nav-cta.router-link-active {
-  background: #1e40af;
-  color: white !important;
+  background: var(--color-primary-dark);
+  color: var(--color-text-on-primary) !important;
 }
 </style>

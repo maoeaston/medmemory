@@ -56,26 +56,26 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
 <style scoped>
 .capture {
   padding: 1.5rem;
-  max-width: 640px;
+  max-width: var(--space-page-max-narrow);
   margin: 0 auto;
 }
 
 .title {
   margin: 0 0 0.25rem;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
 }
 
 .hint {
   margin: 0 0 1.5rem;
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
 
 .tabs {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-default);
 }
 
 .tab {
@@ -89,20 +89,20 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
   transition: color 0.15s, border-color 0.15s;
   position: relative;
 }
 
 .tab:hover:not(.disabled):not(.active) {
-  color: #1f2937;
+  color: var(--color-text-primary);
 }
 
 .tab.active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
-  font-weight: 600;
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .tab.disabled {
@@ -115,13 +115,13 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
 }
 
 .tab-label {
-  font-size: 0.9rem;
+  font-size: var(--font-size-body);
 }
 
 .tab-wip {
   font-size: 0.7rem;
-  color: #9ca3af;
-  background: #f3f4f6;
+  color: var(--color-text-faint);
+  background: var(--color-bg-muted);
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
   position: absolute;
@@ -136,14 +136,14 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
 .wip-panel {
   padding: 2rem 1rem;
   text-align: center;
-  color: #6b7280;
-  background: #f9fafb;
-  border-radius: 6px;
+  color: var(--color-text-muted);
+  background: var(--color-bg-page);
+  border-radius: var(--radius-card);
 }
 
 .wip-hint {
-  font-size: 0.85rem;
+  font-size: var(--font-size-small);
   margin-top: 0.5rem;
-  color: #9ca3af;
+  color: var(--color-text-faint);
 }
 </style>

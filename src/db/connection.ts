@@ -26,6 +26,7 @@ import schema2Sql from '@/../db/migrations/002_lab_indicators.sql?raw';
 import schema3Sql from '@/../db/migrations/003_ai_suggestions.sql?raw';
 import schema4Sql from '@/../db/migrations/004_event_ai_suggestions.sql?raw';
 import schema5Sql from '@/../db/migrations/005_ai_interpretations.sql?raw';
+import schema6Sql from '@/../db/migrations/006_follow_up_date.sql?raw';
 
 // ============================================================
 // 类型定义
@@ -343,7 +344,19 @@ async function runMigrations(promiser: PromiserFn): Promise<void> {
     }
   }
 
-  // 后续新增 006+ migration 在此追加 if currentVersion < 6 { ... }
+  if (currentVersion < 6) {
+    try {
+      await promiser('exec', { sql: schema6Sql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v6 (medical_events.next_visit_date v3.3 触点扩展) 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
+  }
+
+  // 后续新增 007+ migration 在此追加 if currentVersion < 7 { ... }
 }
 
 // ============================================================

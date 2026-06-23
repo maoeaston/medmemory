@@ -267,7 +267,7 @@ onMounted(() => {
 <style scoped>
 .inbox-view {
   padding: 1.5rem;
-  max-width: 720px;
+  max-width: var(--space-page-max-width);
   margin: 0 auto;
 }
 
@@ -288,17 +288,17 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
 }
 
 .count-badge {
   display: inline-block;
   padding: 0.2rem 0.6rem;
   background: #fef3c7;
-  color: #92400e;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  color: var(--color-warning-text);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   min-width: 1.6rem;
   text-align: center;
 }
@@ -308,73 +308,35 @@ onMounted(() => {
   gap: 0.5rem;
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-small {
-  padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .hint {
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
 
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;
-  background: #ecfdf5;
-  border-radius: 6px;
-  color: #065f46;
+  background: var(--color-success-light);
+  border-radius: var(--radius-card);
+  color: var(--color-success);
 }
 
 .empty-title {
   margin: 0 0 0.4rem;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
 }
 
 .empty-hint {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-body);
   color: #047857;
 }
 
 .link {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .link:hover {
@@ -393,27 +355,27 @@ onMounted(() => {
 .msg {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-body);
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 
 .failures {
   margin-top: 1rem;
   padding: 0.75rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 4px;
+  background: var(--color-danger-light);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-badge);
 }
 
 .failures-title {
   margin: 0 0 0.4rem;
-  font-size: 0.92rem;
-  color: #991b1b;
+  font-size: var(--font-size-input);
+  color: var(--color-danger-text);
 }
 
 .failures-list {
@@ -426,14 +388,14 @@ onMounted(() => {
 }
 
 .failures-item {
-  font-size: 0.82rem;
+  font-size: var(--font-size-meta);
   color: #7f1d1d;
   font-family: monospace;
 }
 
 .failures-hint {
   margin: 0;
-  font-size: 0.82rem;
-  color: #991b1b;
+  font-size: var(--font-size-meta);
+  color: var(--color-danger-text);
 }
 </style>

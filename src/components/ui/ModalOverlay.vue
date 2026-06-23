@@ -95,9 +95,9 @@ onUnmounted(() => {
 }
 
 .modal-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-modal);
   display: flex;
   flex-direction: column;
   max-height: 90vh;
@@ -117,8 +117,8 @@ onUnmounted(() => {
 }
 
 .modal-header {
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: var(--space-card-padding);
+  border-bottom: 1px solid var(--color-border-default);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -128,8 +128,8 @@ onUnmounted(() => {
 .modal-title {
   margin: 0;
   font-size: 1.15rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
 }
 
 .modal-close {
@@ -137,16 +137,16 @@ onUnmounted(() => {
   border: none;
   font-size: 1.6rem;
   line-height: 1;
-  color: #6b7280;
+  color: var(--color-text-muted);
   cursor: pointer;
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-badge);
   transition: background 0.15s, color 0.15s;
 }
 
 .modal-close:hover {
-  background: #f3f4f6;
-  color: #1f2937;
+  background: var(--color-bg-muted);
+  color: var(--color-text-primary);
 }
 
 .modal-body {
@@ -157,11 +157,11 @@ onUnmounted(() => {
 
 .modal-footer {
   padding: 0.75rem 1.25rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--color-border-default);
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  background: #f9fafb;
-  border-radius: 0 0 8px 8px;
+  background: var(--color-bg-page);
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
 }
 </style>

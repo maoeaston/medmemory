@@ -1,0 +1,99 @@
+/**
+ * 全局按钮系统 — 所有 .btn* 类定义在此（非 scoped）。
+ *
+ * 历史: .btn / .btn-primary / .btn-secondary / .btn-danger / .btn-small
+ * 曾在 7 个 .vue 文件重复定义且 padding 各异, 此文件统一。
+ *
+ * 各 view 的 <style scoped> 块不再需要定义这些类; 直接使用 <button class="btn btn-primary"> 即可。
+ *
+ * 设计决策:
+ *   - .btn-danger (描边红): 列表行/操作栏/次要危险动作。视觉重量低, 不每行惊扰
+ *   - .btn-danger-solid (实心红): 仅 ConfirmDialog 确认按钮等决策终点。最强警告
+ *   - .btn-recording (中性灰底): VoiceCapture 停止按钮等"非破坏但需注意"的动作
+ */
+
+.btn {
+  padding: var(--space-btn-padding);
+  border: none;
+  border-radius: var(--radius-button);
+  font-size: var(--font-size-btn);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-base);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.btn-small {
+  padding: var(--space-btn-pad-small);
+  font-size: var(--font-size-btn-small);
+}
+
+.btn-large {
+  padding: var(--space-btn-pad-large);
+  font-size: var(--font-size-btn-large);
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.btn-secondary {
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-border-default);
+}
+
+/* 描边红 — 列表删除、次要危险动作 */
+.btn-danger {
+  background: var(--color-bg-card);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-light);
+  border-color: var(--color-danger);
+}
+
+/* 实心红 — ConfirmDialog 决策终点 */
+.btn-danger-solid {
+  background: var(--color-danger);
+  color: var(--color-text-on-primary);
+  border: 1px solid var(--color-danger);
+}
+.btn-danger-solid:hover:not(:disabled) {
+  background: var(--color-danger-hover);
+}
+
+/* 录制中按钮 — VoiceCapture 停止按钮（非破坏性） */
+.btn-recording {
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+}
+.btn-recording:hover:not(:disabled) {
+  background: var(--color-border-default);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-muted);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

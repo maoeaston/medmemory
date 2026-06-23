@@ -56,7 +56,7 @@ const emit = defineEmits<{
       </button>
       <button
         type="button"
-        :class="['btn', props.danger ? 'btn-danger' : 'btn-primary']"
+        :class="['btn', props.danger ? 'btn-danger-solid' : 'btn-primary']"
         :disabled="props.loading"
         @click="emit('confirm')"
       >
@@ -70,66 +70,24 @@ const emit = defineEmits<{
 .confirm-message {
   margin: 0 0 0.5rem;
   font-size: 1rem;
-  color: #1f2937;
+  color: var(--color-text-primary);
   line-height: 1.5;
 }
 
 .confirm-detail {
   margin: 0;
-  font-size: 0.85rem;
-  color: #6b7280;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
   line-height: 1.5;
   white-space: pre-line;
 }
 
 .confirm-error {
   margin: 0.5rem 0 0;
-  font-size: 0.85rem;
-  color: #991b1b;
-  background: #fef2f2;
+  font-size: var(--font-size-small);
+  color: var(--color-danger-text);
+  background: var(--color-danger-light);
   padding: 0.5rem;
-  border-radius: 4px;
-}
-
-.btn {
-  padding: 0.55rem 1.1rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.92rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.btn-danger {
-  background: #dc2626;
-  color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #b91c1c;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  border-radius: var(--radius-badge);
 }
 </style>

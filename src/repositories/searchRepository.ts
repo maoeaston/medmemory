@@ -60,6 +60,7 @@ interface SearchRow {
   me_title: string | null;
   me_event_type: MedicalEvent['event_type'] | null;
   me_summary: string | null;
+  me_next_visit_date: string | null;
   me_created_at: string | null;
   me_updated_at: string | null;
 
@@ -107,6 +108,7 @@ function toSearchResult(row: SearchRow): SearchResult {
           title: row.me_title as string,
           event_type: row.me_event_type as MedicalEvent['event_type'],
           summary: row.me_summary,
+          next_visit_date: row.me_next_visit_date,
           created_at: row.me_created_at as string,
           updated_at: row.me_updated_at as string,
         };
@@ -179,6 +181,7 @@ export class SearchRepositoryImpl implements SearchRepository {
         me.id AS me_id, me.member_id AS me_member_id, me.event_date AS me_event_date,
         me.hospital AS me_hospital, me.department AS me_department,
         me.title AS me_title, me.event_type AS me_event_type, me.summary AS me_summary,
+        me.next_visit_date AS me_next_visit_date,
         me.created_at AS me_created_at, me.updated_at AS me_updated_at,
 
         fm.id AS fm_id, fm.name AS fm_name, fm.nickname AS fm_nickname,

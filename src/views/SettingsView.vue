@@ -829,7 +829,7 @@ onMounted(() => {
 <style scoped>
 .settings-view {
   padding: 1.5rem;
-  max-width: 720px;
+  max-width: var(--space-page-max-width);
   margin: 0 auto;
 }
 
@@ -839,27 +839,27 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
 }
 
 .settings-section {
   padding: 1.25rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
   margin-bottom: 1rem;
 }
 
 .danger-section {
-  border-color: #fecaca;
+  border-color: var(--color-danger-border);
   background: #fefcfb;
 }
 
 .section-title {
   margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
 }
 
 .section-title-danger {
@@ -868,14 +868,14 @@ onMounted(() => {
 
 .section-desc {
   margin: 0 0 0.9rem;
-  font-size: 0.9rem;
-  color: #4b5563;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
 .warn {
   color: #b91c1c;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .action-row {
@@ -887,8 +887,8 @@ onMounted(() => {
 }
 
 .progress-text {
-  font-size: 0.85rem;
-  color: #6b7280;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -909,114 +909,69 @@ onMounted(() => {
 .file-picker-label {
   display: inline-block;
   padding: 0.5rem 1rem;
-  background: #f3f4f6;
-  color: #4b5563;
-  border-radius: 6px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-input);
   font-size: 0.88rem;
-  font-weight: 600;
-  border: 1px solid #d1d5db;
+  font-weight: var(--font-weight-semibold);
+  border: 1px solid var(--color-border-input);
   transition: background 0.15s;
 }
 
 .file-picker:hover .file-picker-label {
-  background: #e5e7eb;
+  background: var(--color-border-default);
 }
 
 .file-name {
   font-size: 0.88rem;
-  color: #1f2937;
+  color: var(--color-text-primary);
   word-break: break-all;
   max-width: 20rem;
-}
-
-.btn {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn-danger {
-  background: white;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: #dc2626;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .msg {
   margin: 0.5rem 0 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
+  border-radius: var(--radius-badge);
   font-size: 0.88rem;
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 
 .msg-success {
-  background: #ecfdf5;
-  color: #065f46;
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .confirm-message {
   margin: 0 0 0.75rem;
-  font-size: 0.92rem;
-  color: #1f2937;
+  font-size: var(--font-size-input);
+  color: var(--color-text-primary);
   line-height: 1.5;
 }
 
 .reset-input {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 0.95rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-input);
   font-family: inherit;
-  background: white;
-  color: #1f2937;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
 }
 
 .reset-input:focus {
   outline: none;
-  border-color: #dc2626;
+  border-color: var(--color-danger);
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
 .reset-input:disabled {
-  background: #f9fafb;
+  background: var(--color-bg-page);
   cursor: not-allowed;
 }
 
@@ -1030,22 +985,22 @@ onMounted(() => {
 .api-key-input {
   flex: 1;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-body);
   font-family: monospace;
-  background: white;
-  color: #1f2937;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
 }
 
 .api-key-input:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .api-key-input:disabled {
-  background: #f9fafb;
+  background: var(--color-bg-page);
   cursor: not-allowed;
 }
 
@@ -1061,55 +1016,55 @@ onMounted(() => {
 }
 
 .config-label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
   color: #374151;
 }
 
 .text-input {
   padding: 0.5rem 0.7rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-body);
   font-family: monospace;
-  background: white;
-  color: #1f2937;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
 }
 
 .text-input:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .text-input:disabled {
-  background: #f9fafb;
+  background: var(--color-bg-page);
   cursor: not-allowed;
 }
 
 .config-row code {
   font-family: monospace;
-  background: #f3f4f6;
+  background: var(--color-bg-muted);
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
   font-size: 0.85em;
-  color: #1e40af;
+  color: var(--color-primary-dark);
 }
 
 .saved-flash {
-  font-size: 0.85rem;
-  color: #065f46;
-  font-weight: 500;
+  font-size: var(--font-size-small);
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
 }
 
 .msg-info {
-  background: #eff6ff;
-  color: #1e40af;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
 }
 
 .msg-warn {
   background: #fef3c7;
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 /* === 批量处理 === */
@@ -1119,18 +1074,18 @@ onMounted(() => {
 
 .pending-count {
   font-size: 0.88rem;
-  color: #1f2937;
-  font-weight: 600;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .pending-list {
   margin-top: 0.6rem;
-  font-size: 0.82rem;
+  font-size: var(--font-size-meta);
 }
 
 .pending-list summary {
   cursor: pointer;
-  color: #2563eb;
+  color: var(--color-primary);
   padding: 0.3rem 0;
 }
 
@@ -1151,18 +1106,18 @@ onMounted(() => {
   gap: 0.4rem;
   padding: 0.2rem 0;
   align-items: center;
-  font-size: 0.8rem;
+  font-size: var(--font-size-caption);
 }
 
 .pending-id {
-  color: #9ca3af;
+  color: var(--color-text-faint);
   font-variant-numeric: tabular-nums;
   min-width: 2.5rem;
 }
 
 .pending-name {
   flex: 1;
-  color: #4b5563;
+  color: var(--color-text-secondary);
   word-break: break-all;
 }
 
@@ -1170,16 +1125,16 @@ onMounted(() => {
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .status-uploaded {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
 }
 
 .status-failed {
   background: #fee2e2;
-  color: #991b1b;
+  color: var(--color-danger-text);
 }
 </style>

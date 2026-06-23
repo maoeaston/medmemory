@@ -31,6 +31,7 @@ import {
   type LabInterpretationRequest,
   type MedicationGuide,
   type MedicationGuideRequest,
+  type MedicinePackageScanResult,
   type MultimodalRequest,
   type SuggestedHealthProblem,
   type TextSuggestionRequest,
@@ -141,7 +142,25 @@ export class OpenAiProvider implements AiProvider {
     // 不做"用户已填 /chat/completions 就保留"的容错——主流约定要求用户只填到 /v1,
     // 容错反而让边界模糊 (参考 ccapi.us 文档"接口地址与密钥"章节).
     // 仅处理一种边界: 末尾多余斜杠.
-    const normalizedBase = baseUrl.replace(/\/+$/, '');
+    let normalizedBase = baseUrl.replace(/\/+$/, '');
+
+    // Dev mode: 外部 API 通过 Vite dev proxy 走同源, 绕过 Chromium headless 下
+    // COEP require-corp + 系统代理的叠加问题（fetch 挂死）。
+    // 生产（PWA 纯前端）不做改写, 用户配的 baseUrl 直接生效。
+    // Vite proxy 一个 host 一个 entry, 这里按 baseUrl host 选 prefix;
+    // 新 provider 加新 entry 即可（vite.config.ts + 这里同步）.
+    if (import.meta.env.DEV && normalizedBase.startsWith('https://')) {
+      const host = new URL(normalizedBase).host;
+      const proxySeg =
+        host === 'ccapi.us' ? 'ccapi'
+        : host === 'api.deepseek.com' ? 'deepseek'
+        : null;
+      if (proxySeg) {
+        normalizedBase =
+          '/llm-proxy/' + proxySeg + normalizedBase.replace(/^https?:\/\/[^/]+/, '');
+      }
+    }
+
     this.endpoint = `${normalizedBase}/chat/completions`;
     this.model = model;
   }
@@ -149,11 +168,27 @@ export class OpenAiProvider implements AiProvider {
   async processMedicalDocument(
     req: MultimodalRequest,
   ): Promise<AiProcessingResult> {
-    const dataUrl = await blobToDataUrl(req.imageBlob);
+    const rawContent = await this.callVision(req.prompt, req.imageBlob);
+    return parseMedicalDocumentJson(rawContent);
+  }
+
+  /**
+   * 多模态（image_url）Chat Completion 共用方法（v3.4 抽出）。
+   *
+   * system + user (image_url) 两段消息, response_format 强制 JSON, temperature 0.2。
+   * 返回 choices[0].message.content 原始字符串, 调用方各自 parse + validate。
+   *
+   * processMedicalDocument + scanMedicinePackage 共用此方法。
+   */
+  private async callVision(
+    systemPrompt: string,
+    imageBlob: Blob,
+  ): Promise<string> {
+    const dataUrl = await blobToDataUrl(imageBlob);
     const body: OpenAiChatRequest = {
       model: this.model,
       messages: [
-        { role: 'system', content: req.prompt },
+        { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: [{ type: 'image_url', image_url: { url: dataUrl } }],
@@ -203,8 +238,7 @@ export class OpenAiProvider implements AiProvider {
         resp.status,
       );
     }
-
-    return parseMedicalDocumentJson(rawContent);
+    return rawContent;
   }
 
   /**
@@ -399,6 +433,28 @@ export class OpenAiProvider implements AiProvider {
       );
     }
     return parseMedicationGuide(parsed, req.otherMedicines);
+  }
+
+  /**
+   * 药品包装扫描（v3.4）。
+   *
+   * 输入药品包装图片, 输出 OCR + 字段提取结果用于 pre-fill MedicineForm。
+   * 不落库, 不解读 — 仅事实提取。失败策略见 parseMedicineScanJson。
+   */
+  async scanMedicinePackage(
+    req: MultimodalRequest,
+  ): Promise<MedicinePackageScanResult> {
+    const rawContent = await this.callVision(req.prompt, req.imageBlob);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(rawContent) as Record<string, unknown>;
+    } catch (e) {
+      throw new AiProviderError(
+        `药品扫描 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`,
+        'bad-response',
+      );
+    }
+    return parseMedicineScanJson(parsed);
   }
 }
 
@@ -1000,5 +1056,74 @@ function parseMedicationGuide(
     interactions,
     redFlags,
     requiresPrescription,
+  };
+}
+
+// ============================================================
+// v3.4 药品包装扫描 helpers
+// ============================================================
+
+const VALID_CONFIDENCE = new Set(['high', 'medium', 'low']);
+
+/**
+ * 解析 + 校验药品包装扫描输出。
+ *
+ * 校验失败策略（保守, 不抛错除非 name 完全缺失）:
+ *   - name 缺失 → 抛 bad-response（核心字段）
+ *   - usage/expiry_date/extra_info 非法 → 降级 null
+ *   - confidence 非法 → 降级 medium
+ */
+function parseMedicineScanJson(
+  parsed: Record<string, unknown>,
+): MedicinePackageScanResult {
+  const nameRaw = parsed.name;
+  if (typeof nameRaw !== 'string' || nameRaw.trim() === '') {
+    throw new AiProviderError(
+      `药品扫描输出 name 非法: ${JSON.stringify(nameRaw).slice(0, 80)}`,
+      'bad-response',
+    );
+  }
+  const name = nameRaw.trim();
+
+  const usage =
+    typeof parsed.usage === 'string' && parsed.usage.trim()
+      ? parsed.usage.trim()
+      : null;
+
+  // expiry_date: 必须是 YYYY-MM, 否则 null（不严格校验日期合法性, 只校验格式）
+  let expiry_date: string | null = null;
+  if (typeof parsed.expiry_date === 'string') {
+    if (/^\d{4}-\d{2}$/.test(parsed.expiry_date)) {
+      expiry_date = parsed.expiry_date;
+    }
+  }
+
+  const extra_info =
+    typeof parsed.extra_info === 'string' && parsed.extra_info.trim()
+      ? parsed.extra_info.trim()
+      : null;
+
+  // confidence: per-field, 非法降级 medium（保守, 让 UI 提示用户复核）
+  const confRaw = parsed.confidence;
+  const readConf = (key: string): 'high' | 'medium' | 'low' => {
+    if (typeof confRaw === 'object' && confRaw !== null) {
+      const v = (confRaw as Record<string, unknown>)[key];
+      if (typeof v === 'string' && VALID_CONFIDENCE.has(v)) {
+        return v as 'high' | 'medium' | 'low';
+      }
+    }
+    return 'medium';
+  };
+
+  return {
+    name,
+    usage,
+    expiry_date,
+    extra_info,
+    confidence: {
+      name: readConf('name'),
+      usage: readConf('usage'),
+      expiry_date: readConf('expiry_date'),
+    },
   };
 }

@@ -14,6 +14,7 @@
 //
 // 每个卡片独立加载自己的数据（N×4 查询模式）, 失败的子项显示"加载失败"
 import { onMounted, ref } from 'vue';
+import { RouterLink } from 'vue-router';
 import { useRepositories } from '@/composables/useRepositories';
 import type { Attachment, FamilyMember, MedicalEvent } from '@/repositories';
 
@@ -231,15 +232,22 @@ onMounted(() => {
     <p v-if="props.member.remark" class="member-remark">
       📝 {{ props.member.remark }}
     </p>
+
+    <RouterLink
+      :to="`/timeline?member=${props.member.id}`"
+      class="view-events-link"
+    >
+      📋 查看该成员事件 →
+    </RouterLink>
   </article>
 </template>
 
 <style scoped>
 .member-card {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  padding: var(--space-card-padding);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -265,23 +273,23 @@ onMounted(() => {
 
 .member-name {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
 }
 
 .member-nickname {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: #6b7280;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-muted);
 }
 
 .member-birthday {
-  font-size: 0.78rem;
-  color: #9ca3af;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-faint);
 }
 
 /* 过敏行: PRD 7.3/9.3 强制顶部 + 红色高亮 */
@@ -290,12 +298,12 @@ onMounted(() => {
   align-items: flex-start;
   gap: 0.4rem;
   padding: 0.5rem 0.7rem;
-  background: #fef2f2;
-  color: #991b1b;
-  border-left: 3px solid #dc2626;
-  border-radius: 3px;
-  font-size: 0.9rem;
-  font-weight: 500;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
+  border-left: 3px solid var(--color-danger);
+  border-radius: var(--radius-small);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
 }
 
 .info-row {
@@ -304,7 +312,7 @@ onMounted(() => {
   gap: 0.4rem;
   padding: 0.2rem 0;
   font-size: 0.88rem;
-  color: #4b5563;
+  color: var(--color-text-secondary);
 }
 
 .row-icon {
@@ -312,7 +320,7 @@ onMounted(() => {
 }
 
 .row-label {
-  color: #6b7280;
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
@@ -322,14 +330,14 @@ onMounted(() => {
 
 .divider {
   height: 1px;
-  background: #e5e7eb;
+  background: var(--color-border-default);
   margin: 0.5rem 0;
 }
 
 .loading-hint,
 .partial-error {
   font-size: 0.8rem;
-  color: #9ca3af;
+  color: var(--color-text-faint);
   padding: 0.2rem 0;
 }
 
@@ -351,29 +359,47 @@ onMounted(() => {
 }
 
 .dimension dt {
-  font-size: 0.75rem;
-  color: #9ca3af;
-  font-weight: 500;
+  font-size: var(--font-size-badge);
+  color: var(--color-text-faint);
+  font-weight: var(--font-weight-medium);
 }
 
 .dimension dd {
   margin: 0;
   font-size: 0.88rem;
-  color: #1f2937;
+  color: var(--color-text-primary);
 }
 
 .member-remark {
   margin: 0.4rem 0 0;
   padding: 0.4rem 0.6rem;
-  background: #f9fafb;
-  border-radius: 3px;
-  font-size: 0.82rem;
-  color: #6b7280;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-small);
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }
 
 @media (max-width: 540px) {
   .dimensions {
     grid-template-columns: 1fr;
   }
+}
+
+.view-events-link {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.view-events-link:hover {
+  background: #dbeafe;
 }
 </style>

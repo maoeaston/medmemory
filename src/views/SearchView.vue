@@ -157,6 +157,7 @@ onMounted(async () => {
               {{ r.event?.title ?? r.attachment.file_name }}
             </span>
             <span v-if="r.event" class="result-date">{{ r.event.event_date }}</span>
+            <span v-if="r.event" class="result-arrow">›</span>
           </div>
           <div class="result-meta">
             <span class="result-member">
@@ -176,7 +177,7 @@ onMounted(async () => {
 <style scoped>
 .search-view {
   padding: 1.5rem;
-  max-width: 720px;
+  max-width: var(--space-page-max-width);
   margin: 0 auto;
 }
 
@@ -186,13 +187,13 @@ onMounted(async () => {
 
 .page-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
 }
 
 .hint {
   margin: 0 0 1rem;
-  font-size: 0.85rem;
-  color: #6b7280;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
   line-height: 1.5;
 }
 
@@ -205,45 +206,45 @@ onMounted(async () => {
 .search-input {
   flex: 1;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.92rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-input);
   font-family: inherit;
-  background: white;
-  color: #1f2937;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .member-filter {
   padding: 0.55rem 0.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-input);
   font-size: 0.88rem;
   font-family: inherit;
-  background: white;
-  color: #1f2937;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
   cursor: pointer;
   max-width: 10rem;
 }
 
 .member-filter:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .empty-state {
   text-align: center;
   padding: 2rem 1rem;
-  background: #f9fafb;
-  border-radius: 6px;
-  color: #6b7280;
-  font-size: 0.9rem;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-card);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
 
 .result-list {
@@ -261,9 +262,9 @@ onMounted(async () => {
   flex-direction: column;
   gap: 0.25rem;
   text-align: left;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
   padding: 0.7rem 0.9rem;
   cursor: pointer;
   font-family: inherit;
@@ -271,8 +272,8 @@ onMounted(async () => {
 }
 
 .result-row:hover:not(:disabled) {
-  border-color: #2563eb;
-  background: #f8faff;
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .result-row:disabled {
@@ -281,40 +282,46 @@ onMounted(async () => {
 }
 
 .result-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
   gap: 0.5rem;
+  align-items: baseline;
 }
 
 .result-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: var(--font-size-input);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 
 .result-date {
-  font-size: 0.78rem;
-  color: #6b7280;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
+.result-arrow {
+  color: var(--color-border-input);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
 .result-meta {
-  font-size: 0.78rem;
-  color: #6b7280;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
 }
 
 .result-snippet {
   margin: 0.15rem 0 0;
-  font-size: 0.82rem;
-  color: #4b5563;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
   line-height: 1.45;
-  background: #f9fafb;
+  background: var(--color-bg-page);
   padding: 0.4rem 0.5rem;
   border-radius: 3px;
-  border-left: 2px solid #d1d5db;
+  border-left: 2px solid var(--color-border-input);
   max-height: 5rem;
   overflow-y: auto;
   white-space: pre-wrap;
@@ -324,12 +331,12 @@ onMounted(async () => {
 .msg {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-body);
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 </style>

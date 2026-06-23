@@ -94,6 +94,8 @@ export interface MedicalEvent {
   title: string;
   event_type: EventType;
   summary: string | null;
+  /** v3.3 触点扩展: 下次复诊日期 (YYYY-MM-DD, 可空) */
+  next_visit_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -280,6 +282,19 @@ export type LabIndicatorCreateInput = Omit<
   // attachment_id 由 createBatch(attachmentId, ...) 提供, 不在单条 input 内
 };
 
+/**
+ * v3.3 触点扩展: 趋势图数据点。
+ * 把 report_indicators JOIN attachments + medical_events + family_members 拍平。
+ */
+export interface TrendPoint {
+  indicator: LabIndicator;
+  /** 事件日期 YYYY-MM-DD（来自 medical_events.event_date） */
+  event_date: string;
+  member_id: number;
+  member_name: string;
+  event_id: number;
+}
+
 export type MedicineCreateInput = Omit<
   Medicine,
   'id' | 'created_at' | 'updated_at' | 'photo_path' | 'source_event_id'
@@ -329,6 +344,13 @@ export interface MedicalEventRepository {
 
   /** Dashboard 底部"最近事件"（跨成员） */
   listRecent(limit: number): Promise<MedicalEvent[]>;
+
+  /**
+   * v3.3 触点扩展: Dashboard 待复诊提醒。
+   * next_visit_date 在 [today, today+withinDays] 内的事件, 按日期升序。
+   * 已过期（< today）的不计入（用户可手动 archive 或编辑去掉日期）。
+   */
+  listUpcomingFollowUps(withinDays?: number): Promise<MedicalEvent[]>;
 }
 
 // ============================================================
@@ -515,6 +537,29 @@ export interface ReportIndicatorRepository {
 
   /** 重新生成前清空 (整批替换语义) */
   deleteByAttachment(attachmentId: number): Promise<void>;
+
+  /**
+   * v3.3 触点扩展: 跨 attachment 按指标英文缩写查趋势。
+   * 利用 idx_report_indicators_name_en 索引。
+   *
+   * JOIN 链: report_indicators → attachments → medical_events → family_members
+   *   - 排除 event_id 为空的 attachment（未归档的不参与趋势）
+   *   - 按 event_date ASC 排序（折线从左到右时间递增）
+   *
+   * memberId 过滤: 可选, 不传 = 全家所有成员。
+   */
+  listHistoryByNameEn(
+    nameEn: string,
+    filter?: { memberId?: number },
+  ): Promise<TrendPoint[]>;
+
+  /**
+   * v3.3: TrendsView 下拉用。返回有 name_en 的所有指标 + 出现次数。
+   * count DESC 让常见指标（血常规等）排在前面。
+   */
+  listDistinctNames(): Promise<
+    { name_en: string; name_cn: string; count: number }[]
+  >;
 }
 
 // ============================================================

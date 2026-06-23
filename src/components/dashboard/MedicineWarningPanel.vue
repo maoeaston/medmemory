@@ -99,10 +99,10 @@ const totalCount = computed(
 
 <style scoped>
 .medicine-panel {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem 1.25rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  padding: var(--space-card-padding);
 }
 
 .panel-header {
@@ -115,13 +115,13 @@ const totalCount = computed(
 
 .panel-title {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: var(--font-size-panel-title);
+  font-weight: var(--font-weight-semibold);
 }
 
 .panel-link {
-  font-size: 0.85rem;
-  color: #2563eb;
+  font-size: var(--font-size-small);
+  color: var(--color-primary);
   text-decoration: none;
 }
 
@@ -130,16 +130,16 @@ const totalCount = computed(
 }
 
 .hint {
-  color: #9ca3af;
+  color: var(--color-text-faint);
   font-size: 0.88rem;
 }
 
 .ok-state {
-  color: #065f46;
-  font-size: 0.9rem;
+  color: var(--color-success);
+  font-size: var(--font-size-body);
   padding: 0.5rem 0.7rem;
-  background: #ecfdf5;
-  border-radius: 4px;
+  background: var(--color-success-light);
+  border-radius: var(--radius-badge);
 }
 
 .groups {
@@ -154,15 +154,15 @@ const totalCount = computed(
 
 .group-count {
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .group-expired .group-count {
-  color: #991b1b;
+  color: var(--color-danger-text);
 }
 
 .group-soon .group-count {
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 .med-list {
@@ -180,26 +180,26 @@ const totalCount = computed(
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
-  background: #f9fafb;
-  border-radius: 4px;
-  font-size: 0.85rem;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-small);
 }
 
 .group-expired .med-item {
-  background: #fef2f2;
+  background: var(--color-danger-light);
 }
 
 .group-soon .med-item {
-  background: #fffbeb;
+  background: var(--color-warning-light);
 }
 
 .med-name {
-  color: #1f2937;
-  font-weight: 500;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
 }
 
 .med-expiry {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.8rem;
   white-space: nowrap;
 }
@@ -207,12 +207,12 @@ const totalCount = computed(
 .msg {
   margin: 0;
   padding: 0.5rem 0.7rem;
-  border-radius: 4px;
+  border-radius: var(--radius-badge);
   font-size: 0.88rem;
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 </style>

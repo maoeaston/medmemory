@@ -584,9 +584,9 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 120px 1fr;
   gap: 0.4rem 0.75rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
   padding: 0.6rem;
 }
 
@@ -598,16 +598,16 @@ onUnmounted(() => {
   justify-content: center;
   width: 100%;
   height: 120px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-badge);
   padding: 0;
   cursor: pointer;
   overflow: hidden;
 }
 
 .photo-thumb:hover:not(:disabled) {
-  border-color: #2563eb;
+  border-color: var(--color-primary);
 }
 
 .photo-thumb:disabled {
@@ -628,9 +628,9 @@ onUnmounted(() => {
   justify-content: center;
   width: 100%;
   min-height: 120px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  background: var(--color-bg-page);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-badge);
   padding: 0.5rem;
 }
 
@@ -643,7 +643,7 @@ onUnmounted(() => {
   border: none;
   padding: 0.5rem 1rem;
   cursor: pointer;
-  color: #2563eb;
+  color: var(--color-primary);
   font-family: inherit;
 }
 
@@ -656,24 +656,24 @@ onUnmounted(() => {
 }
 
 .pdf-name {
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-semibold);
   word-break: break-all;
 }
 
 .pdf-hint {
-  font-size: 0.75rem;
-  color: #6b7280;
+  font-size: var(--font-size-badge);
+  color: var(--color-text-muted);
 }
 
 .placeholder-msg {
-  font-size: 0.85rem;
-  color: #6b7280;
+  font-size: var(--font-size-small);
+  color: var(--color-text-muted);
   padding: 0.5rem;
 }
 
 .placeholder-msg.error {
-  color: #991b1b;
+  color: var(--color-danger-text);
 }
 
 .attachment-meta {
@@ -686,20 +686,20 @@ onUnmounted(() => {
 }
 
 .meta-filename {
-  font-size: 0.82rem;
-  color: #4b5563;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
   word-break: break-all;
 }
 
 .meta-line {
-  font-size: 0.78rem;
-  color: #1e40af;
-  font-weight: 500;
+  font-size: var(--font-size-caption);
+  color: var(--color-primary-dark);
+  font-weight: var(--font-weight-medium);
 }
 
 .meta-sub {
   font-size: 0.72rem;
-  color: #9ca3af;
+  color: var(--color-text-faint);
   display: flex;
   gap: 0.3rem;
   align-items: center;
@@ -709,36 +709,36 @@ onUnmounted(() => {
 .status-badge {
   display: inline-block;
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  font-weight: 600;
+  border-radius: var(--radius-small);
+  font-weight: var(--font-weight-semibold);
   font-size: 0.7rem;
 }
 
 .badge-pending {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
 }
 
 .badge-processing {
   background: #fef3c7;
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 .badge-done {
   background: #d1fae5;
-  color: #065f46;
+  color: var(--color-success);
 }
 
 .badge-failed {
   background: #fee2e2;
-  color: #991b1b;
+  color: var(--color-danger-text);
 }
 
 /* === AI section === */
 .ai-section {
   grid-column: 1 / -1;
   grid-row: 2;
-  border-top: 1px dashed #e5e7eb;
+  border-top: 1px dashed var(--color-border-default);
   padding-top: 0.5rem;
   display: flex;
   flex-direction: column;
@@ -757,19 +757,19 @@ onUnmounted(() => {
 
 .ai-btn {
   padding: 0.35rem 0.7rem;
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: white;
-  border-radius: 4px;
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-radius: var(--radius-badge);
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .ai-btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--color-primary-hover);
 }
 
 .ai-btn:disabled {
@@ -778,17 +778,17 @@ onUnmounted(() => {
 }
 
 .ai-btn-secondary {
-  background: white;
-  color: #2563eb;
+  background: var(--color-bg-card);
+  color: var(--color-primary);
 }
 
 .ai-btn-secondary:hover:not(:disabled) {
-  background: #eff6ff;
+  background: var(--color-primary-light);
 }
 
 .ai-btn-small {
   padding: 0.25rem 0.55rem;
-  font-size: 0.75rem;
+  font-size: var(--font-size-badge);
 }
 
 .indicator-action-row {
@@ -800,13 +800,13 @@ onUnmounted(() => {
 .ai-hint {
   margin: 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
 }
 
 .link {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .link:hover {
@@ -815,7 +815,7 @@ onUnmounted(() => {
 
 .ai-text {
   font-size: 0.8rem;
-  color: #92400e;
+  color: var(--color-warning-text);
 }
 
 .spinner {
@@ -838,11 +838,11 @@ onUnmounted(() => {
   background: transparent;
   border: none;
   padding: 0;
-  color: #2563eb;
+  color: var(--color-primary);
   font-size: 0.8rem;
   font-family: inherit;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .ai-toggle:hover {
@@ -853,8 +853,8 @@ onUnmounted(() => {
   width: 100%;
   margin-top: 0.3rem;
   padding: 0.6rem;
-  background: #f9fafb;
-  border-radius: 4px;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-badge);
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -869,7 +869,7 @@ onUnmounted(() => {
 /* === AI 结果标签页 === */
 .ai-tabs {
   display: flex;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border-default);
   margin-bottom: 0.5rem;
 }
 
@@ -879,8 +879,8 @@ onUnmounted(() => {
   border-bottom: 2px solid transparent;
   padding: 0.35rem 0.7rem;
   font-family: inherit;
-  font-size: 0.78rem;
-  color: #6b7280;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
   cursor: pointer;
   margin-bottom: -1px;
   transition: color 0.15s, border-color 0.15s;
@@ -890,13 +890,13 @@ onUnmounted(() => {
 }
 
 .ai-tab:hover {
-  color: #1f2937;
+  color: var(--color-text-primary);
 }
 
 .ai-tab.active {
-  color: #1e40af;
-  border-bottom-color: #1e40af;
-  font-weight: 600;
+  color: var(--color-primary-dark);
+  border-bottom-color: var(--color-primary-dark);
+  font-weight: var(--font-weight-semibold);
 }
 
 .ai-tab-count {
@@ -906,36 +906,36 @@ onUnmounted(() => {
   min-width: 1.2rem;
   height: 1.1rem;
   padding: 0 0.35rem;
-  border-radius: 999px;
-  background: #e5e7eb;
-  color: #4b5563;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-default);
+  color: var(--color-text-secondary);
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .ai-tab.active .ai-tab-count {
   background: #dbeafe;
-  color: #1e40af;
+  color: var(--color-primary-dark);
 }
 
 .ai-block-title {
   margin: 0;
-  font-size: 0.75rem;
-  color: #1e40af;
-  font-weight: 600;
+  font-size: var(--font-size-badge);
+  color: var(--color-primary-dark);
+  font-weight: var(--font-weight-semibold);
 }
 
 .ai-block-text {
   margin: 0;
-  font-size: 0.85rem;
-  color: #1f2937;
+  font-size: var(--font-size-small);
+  color: var(--color-text-primary);
   line-height: 1.5;
 }
 
 .ai-block-ocr {
   margin: 0;
-  font-size: 0.78rem;
-  color: #4b5563;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
   line-height: 1.45;
   font-family: inherit;
   white-space: pre-wrap;
@@ -947,14 +947,14 @@ onUnmounted(() => {
 .ai-model-tag {
   margin: 0;
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--color-text-faint);
   font-style: italic;
 }
 
 .ai-error-msg {
   margin: 0;
   font-size: 0.8rem;
-  color: #991b1b;
+  color: var(--color-danger-text);
   flex: 1;
   word-break: break-word;
 }
@@ -969,45 +969,45 @@ onUnmounted(() => {
 }
 
 .doc-type-label {
-  font-size: 0.75rem;
-  color: #6b7280;
-  font-weight: 500;
+  font-size: var(--font-size-badge);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
 }
 
 .doc-type-select {
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: var(--font-size-caption);
   padding: 0.18rem 0.4rem;
-  border: 1px solid #d1d5db;
-  border-radius: 3px;
-  background: white;
-  color: #1f2937;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-small);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
   cursor: pointer;
   max-width: 10rem;
 }
 
 .doc-type-select:hover:not(:disabled) {
-  border-color: #2563eb;
+  border-color: var(--color-primary);
 }
 
 .doc-type-select:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .doc-type-select:disabled {
-  background: #f3f4f6;
+  background: var(--color-bg-muted);
   cursor: not-allowed;
 }
 
 .doc-type-hint {
   font-size: 0.7rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
 }
 
 .doc-type-hint.error {
-  color: #991b1b;
+  color: var(--color-danger-text);
 }
 
 /* === 化验单指标表 === */
@@ -1017,35 +1017,35 @@ onUnmounted(() => {
 
 .indicator-table-wrap {
   overflow-x: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-badge);
+  background: var(--color-bg-card);
 }
 
 .indicator-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: var(--font-size-caption);
 }
 
 .indicator-table thead {
-  background: #f9fafb;
+  background: var(--color-bg-page);
 }
 
 .indicator-table th {
   padding: 0.35rem 0.5rem;
   text-align: left;
-  font-weight: 600;
-  color: #4b5563;
-  border-bottom: 1px solid #e5e7eb;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-default);
   font-size: 0.72rem;
   white-space: nowrap;
 }
 
 .indicator-table td {
   padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid #f3f4f6;
-  color: #1f2937;
+  border-bottom: 1px solid var(--color-bg-muted);
+  color: var(--color-text-primary);
   vertical-align: top;
 }
 
@@ -1058,30 +1058,30 @@ onUnmounted(() => {
 }
 
 .ind-name-cn {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .ind-name-en {
   display: inline-block;
   margin-left: 0.3rem;
-  color: #9ca3af;
+  color: var(--color-text-faint);
   font-size: 0.72rem;
 }
 
 .ind-result-value {
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
 }
 
 .ind-unit {
   display: inline-block;
   margin-left: 0.2rem;
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.72rem;
 }
 
 .ind-ref {
-  color: #6b7280;
+  color: var(--color-text-muted);
   font-size: 0.72rem;
   white-space: nowrap;
 }
@@ -1094,8 +1094,8 @@ onUnmounted(() => {
   display: inline-block;
   min-width: 1.2rem;
   padding: 0.05rem 0.35rem;
-  border-radius: 3px;
-  font-weight: 700;
+  border-radius: var(--radius-small);
+  font-weight: var(--font-weight-bold);
   font-size: 0.72rem;
   line-height: 1.3;
 }
@@ -1103,22 +1103,22 @@ onUnmounted(() => {
 /* H = 偏高, 红色高亮 (用户约定) */
 .abnormal-H {
   background: #fee2e2;
-  color: #991b1b;
+  color: var(--color-danger-text);
 }
 
 /* L = 偏低, 蓝色高亮 (区别于 H, 同为异常但色调反差) */
 .abnormal-L {
   background: #dbeafe;
-  color: #1e40af;
+  color: var(--color-primary-dark);
 }
 
 /* N = 正常, 灰色低调 (不抢眼) */
 .abnormal-N {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
 }
 
 .abnormal-none {
-  color: #d1d5db;
+  color: var(--color-border-input);
 }
 </style>

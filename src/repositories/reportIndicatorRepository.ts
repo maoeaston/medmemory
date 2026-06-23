@@ -18,6 +18,7 @@ import type {
   LabIndicator,
   LabIndicatorCreateInput,
   ReportIndicatorRepository,
+  TrendPoint,
 } from '@/repositories/interfaces';
 import { executeWrite, selectMany } from '@/repositories/base';
 
@@ -100,5 +101,71 @@ export class ReportIndicatorRepositoryImpl implements ReportIndicatorRepository 
       'delete',
     );
     // 不检查 changes: attachment 可能本来就没有 indicators, delete 0 行不算错误
+  }
+
+  /**
+   * v3.3: 跨 attachment 按指标 name_en 查趋势。
+   *
+   * 利用 idx_report_indicators_name_en 索引（migration 002 为此查询专门建）。
+   * JOIN attachments → medical_events → family_members 拿时间 + 成员名。
+   *
+   * 未归档附件（event_id 为 null）不参与——趋势图需要事件日期做 X 轴。
+   */
+  async listHistoryByNameEn(
+    nameEn: string,
+    filter?: { memberId?: number },
+  ): Promise<TrendPoint[]> {
+    const where = ['ri.name_en = ?', 'a.event_id IS NOT NULL'];
+    const bind: unknown[] = [nameEn];
+    if (filter?.memberId !== undefined) {
+      where.push('me.member_id = ?');
+      bind.push(filter.memberId);
+    }
+    const rows = await selectMany<
+      LabIndicatorRow & {
+        event_date: string;
+        member_id: number;
+        member_name: string;
+        event_id: number;
+      }
+    >(
+      this.db,
+      `SELECT ri.*, me.event_date, me.member_id, fm.name AS member_name, me.id AS event_id
+        FROM report_indicators ri
+        JOIN attachments a ON ri.attachment_id = a.id
+        JOIN medical_events me ON a.event_id = me.id
+        JOIN family_members fm ON me.member_id = fm.id
+        WHERE ${where.join(' AND ')}
+        ORDER BY me.event_date ASC, ri.created_at ASC`,
+      bind,
+    );
+    return rows.map((r) => {
+      const { event_date, member_id, member_name, event_id, ...indicator } = r;
+      return {
+        indicator: toEntity(indicator),
+        event_date,
+        member_id,
+        member_name,
+        event_id,
+      };
+    });
+  }
+
+  /**
+   * v3.3: TrendsView 下拉用。
+   * GROUP BY name_en 聚合; MIN(name_cn) 取代表名（同名异写时取字典序首个, 稳定）。
+   * 只返回有 name_en 的指标（趋势按 name_en 跨次比较）。
+   */
+  async listDistinctNames(): Promise<
+    { name_en: string; name_cn: string; count: number }[]
+  > {
+    return selectMany<{ name_en: string; name_cn: string; count: number }>(
+      this.db,
+      `SELECT name_en, MIN(name_cn) AS name_cn, COUNT(*) AS count
+        FROM report_indicators
+        WHERE name_en IS NOT NULL AND name_en != ''
+        GROUP BY name_en
+        ORDER BY count DESC, name_cn ASC`,
+    );
   }
 }

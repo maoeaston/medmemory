@@ -264,3 +264,26 @@ export function checkCriticalValues(
 
   return alerts;
 }
+
+/**
+ * v3.3 触点扩展: 取指标对应的危急值阈值（供 TrendChart 画虚线参考）。
+ *
+ * 包装 module-private findWhitelistRule, 不暴露 rule 内部结构。
+ * 返回 null 表示该指标不在白名单（趋势图不画危急阈值虚线, 仍可画参考范围带）。
+ */
+export function getThresholdsByName(
+  nameCn: string,
+  nameEn: string | null,
+): {
+  criticalLow: number | null;
+  criticalHigh: number | null;
+  displayName: string;
+} | null {
+  const rule = findWhitelistRule(nameCn, nameEn);
+  if (!rule) return null;
+  return {
+    criticalLow: rule.criticalLow,
+    criticalHigh: rule.criticalHigh,
+    displayName: rule.displayName,
+  };
+}

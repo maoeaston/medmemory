@@ -11,6 +11,10 @@
 //
 // members 由父组件 (MedicinesView) 加载后传入, Form 自己不做 IO。
 import { reactive, ref, watch } from 'vue';
+import { RouterLink } from 'vue-router';
+import { useAiConfig } from '@/composables/useAiConfig';
+import { OpenAiProvider } from '@/lib/ai/OpenAiProvider';
+import { MEDICINE_PACKAGE_SCAN_PROMPT } from '@/lib/ai/prompts';
 import type {
   FamilyMember,
   Medicine,
@@ -104,6 +108,57 @@ function buildInput(): MedicineCreateInput | MedicineUpdateInput {
 
 const errorMsg = ref<string | null>(null);
 
+// === 药品包装扫描（v3.4）===
+// 复用 OCR namespace 的 API key/baseUrl/model（与化验单 OCR 共享 GPT-4o Vision）
+const { hasKey, apiKey, baseUrl, model } = useAiConfig('ocr');
+const isScanning = ref(false);
+const scanError = ref<string | null>(null);
+const scanConfidence = ref<{
+  name: 'high' | 'medium' | 'low';
+  usage: 'high' | 'medium' | 'low';
+  expiry_date: 'high' | 'medium' | 'low';
+} | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+
+function triggerFilePicker(): void {
+  scanError.value = null;
+  fileInput.value?.click();
+}
+
+async function onPackagePhoto(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  // 清空 input.value 让同一文件可重复选
+  input.value = '';
+  if (!file) return;
+
+  isScanning.value = true;
+  scanError.value = null;
+  scanConfidence.value = null;
+  try {
+    const provider = new OpenAiProvider(
+      apiKey.value,
+      baseUrl.value,
+      model.value,
+    );
+    const result = await provider.scanMedicinePackage({
+      imageBlob: file,
+      prompt: MEDICINE_PACKAGE_SCAN_PROMPT,
+    });
+    // pre-fill: 覆盖 name/usage/expiry_date/remark, 保留 member_id/storage_location
+    // （后者跟包装无关, 是用户预设）
+    form.name = result.name;
+    if (result.usage) form.usage = result.usage;
+    if (result.expiry_date) form.expiry_date = result.expiry_date;
+    if (result.extra_info) form.remark = result.extra_info;
+    scanConfidence.value = result.confidence;
+  } catch (e) {
+    scanError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    isScanning.value = false;
+  }
+}
+
 function handleSubmit(): void {
   errorMsg.value = null;
   try {
@@ -121,6 +176,52 @@ function handleCancel(): void {
 
 <template>
   <form class="medicine-form" @submit.prevent="handleSubmit">
+    <!-- v3.4: 药品包装扫描入口 -->
+    <div v-if="hasKey" class="form-section scan-section">
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        class="scan-file-input"
+        @change="onPackagePhoto"
+      />
+      <button
+        type="button"
+        class="btn btn-scan"
+        :disabled="isScanning || props.disabled"
+        @click="triggerFilePicker"
+      >
+        {{ isScanning ? '🔍 扫描中...' : '📷 扫描包装' }}
+      </button>
+      <small class="form-hint">
+        拍药品包装（药盒/药瓶/说明书）, AI 自动识别填表
+      </small>
+      <p
+        v-if="scanConfidence && (scanConfidence.name !== 'high' || scanConfidence.usage !== 'high' || scanConfidence.expiry_date !== 'high')"
+        class="scan-warning"
+      >
+        ⚠️ 部分字段置信度低（{{
+          [
+            scanConfidence.name !== 'high' ? '名称' : null,
+            scanConfidence.usage !== 'high' ? '用途' : null,
+            scanConfidence.expiry_date !== 'high' ? '有效期' : null,
+          ]
+            .filter(Boolean)
+            .join('/')
+        }}）, 请重点核对
+      </p>
+    </div>
+    <div v-else class="form-section scan-section">
+      <p class="form-hint">
+        💡 想用 AI 扫描包装自动填表？先到
+        <RouterLink to="/settings" class="link">设置</RouterLink>
+        配置 AI 密钥
+      </p>
+    </div>
+
+    <p v-if="scanError" class="form-error">扫描失败: {{ scanError }}</p>
+
     <div class="form-section">
       <label class="form-row">
         <span class="form-label">
@@ -340,5 +441,52 @@ textarea.form-input {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* v3.4: 药品包装扫描区 */
+.scan-section {
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.scan-file-input {
+  display: none;
+}
+
+.btn-scan {
+  background: white;
+  color: #1e40af;
+  border: 1px solid #2563eb;
+  padding: 0.55rem 1.2rem;
+  align-self: stretch;
+}
+
+.btn-scan:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.scan-warning {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  align-self: stretch;
+}
+
+.link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.link:hover {
+  text-decoration: underline;
 }
 </style>

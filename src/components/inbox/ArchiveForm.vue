@@ -65,6 +65,7 @@ interface FormState {
   hospital: string;
   department: string;
   summary: string;
+  nextVisitDate: string;
 }
 
 function makeDefault(): FormState {
@@ -76,6 +77,7 @@ function makeDefault(): FormState {
     hospital: '',
     department: '',
     summary: props.initialSummary ?? '',
+    nextVisitDate: '',
   };
 }
 
@@ -115,6 +117,7 @@ function handleSubmit(): void {
     hospital: form.hospital.trim() || null,
     department: form.department.trim() || null,
     summary: form.summary.trim() || null,
+    next_visit_date: form.nextVisitDate || null,
   };
   emit('submit', input);
 }
@@ -236,6 +239,17 @@ function handleCancel(): void {
       />
     </div>
 
+    <div class="form-row">
+      <label class="form-label">下次复诊日期（可选）</label>
+      <input
+        v-model="form.nextVisitDate"
+        type="date"
+        class="form-input"
+        :disabled="props.disabled"
+      />
+      <p class="form-hint">医生交代的复诊时间。会显示在 Dashboard 顶部提醒。</p>
+    </div>
+
     <p v-if="validationError" class="form-error">{{ validationError }}</p>
     <p v-if="props.errorMessage" class="form-error">{{ props.errorMessage }}</p>
 
@@ -330,6 +344,12 @@ textarea.form-input {
   color: #92400e;
   border-radius: 4px;
   font-size: 0.82rem;
+}
+
+.form-hint {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: #6b7280;
 }
 
 .link {

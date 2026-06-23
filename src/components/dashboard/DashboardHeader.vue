@@ -43,10 +43,10 @@ defineProps<{
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding: 1rem 1.25rem;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  padding: var(--space-card-padding);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
   margin-bottom: 1rem;
 }
 
@@ -59,19 +59,19 @@ defineProps<{
 
 .header-title {
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: var(--font-size-page-title);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
 }
 
 .pending-badge {
   display: inline-block;
   padding: 0.3rem 0.7rem;
   background: #fef3c7;
-  color: #92400e;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  color: var(--color-warning-text);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   text-decoration: none;
   border: 1px solid #fcd34d;
   transition: background 0.15s;
@@ -84,27 +84,27 @@ defineProps<{
 .pending-zero {
   display: inline-block;
   padding: 0.3rem 0.7rem;
-  background: #ecfdf5;
-  color: #065f46;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  border: 1px solid #a7f3d0;
+  background: var(--color-success-light);
+  color: var(--color-success);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-medium);
+  border: 1px solid var(--color-success-border);
 }
 
 .cta-btn {
   padding: 0.6rem 1.2rem;
-  background: #2563eb;
+  background: var(--color-primary);
   color: white;
   text-decoration: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.92rem;
+  border-radius: var(--radius-button);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-input);
   transition: background 0.15s;
   white-space: nowrap;
 }
 
 .cta-btn:hover {
-  background: #1d4ed8;
+  background: var(--color-primary-hover);
 }
 </style>

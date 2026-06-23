@@ -53,6 +53,11 @@ const router = createRouter({
       component: () => import('@/views/TimelineView.vue'),
     },
     {
+      path: '/trends',
+      name: 'trends',
+      component: () => import('@/views/TrendsView.vue'),
+    },
+    {
       path: '/search',
       name: 'search',
       component: () => import('@/views/SearchView.vue'),

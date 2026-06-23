@@ -1,0 +1,142 @@
+/**
+ * MedMemory Design Tokens — 全局 CSS custom properties 单一真理源。
+ *
+ * 通过 src/main.ts import, 在 :root 上定义, 所有 <style scoped> 块通过 var(--xxx) 继承访问。
+ * 不引入任何 CSS 框架; 纯 native CSS custom properties。
+ *
+ * 修改这些值会级联到所有引用 var(--xxx) 的组件 — 改一处即换肤。
+ */
+
+:root {
+  /* ====================================
+   * 文字色
+   * ==================================== */
+  --color-text-primary:    #1f2937;  /* gray-800 — 主文本 */
+  --color-text-secondary:  #4b5563;  /* gray-600 — 次级文本、section 标题 */
+  --color-text-muted:      #6b7280;  /* gray-500 — hint、日期、label. canonical, 取代 #9ca3af */
+  --color-text-faint:      #9ca3af;  /* gray-400 — timestamp、placeholder、次要 meta */
+  --color-text-on-primary: white;    /* 主色按钮上的文字 */
+
+  /* ====================================
+   * 品牌色 / 强调色
+   * ==================================== */
+  --color-primary:        #2563eb;  /* blue-600 — 链接、主按钮 */
+  --color-primary-hover:  #1d4ed8;  /* blue-700 */
+  --color-primary-light:  #eff6ff;  /* blue-50 — badge 背景 */
+  --color-primary-dark:   #1e40af;  /* blue-800 — active nav、badge 文字 */
+
+  /* ====================================
+   * 表面色
+   * ==================================== */
+  --color-bg-page:        #f9fafb;  /* gray-50 — body 背景 */
+  --color-bg-card:        white;
+  --color-bg-muted:       #f3f4f6;  /* gray-100 — secondary 按钮、hover */
+  --color-bg-hover:       #f9fafb;
+  --color-border-default: #e5e7eb;  /* gray-200 — 卡片边框、分隔线 */
+  --color-border-input:   #d1d5db;  /* gray-300 — input/select 边框 */
+
+  /* ====================================
+   * 状态色 — danger
+   * ==================================== */
+  --color-danger:         #dc2626;  /* red-600 */
+  --color-danger-hover:   #b91c1c;  /* red-700 */
+  --color-danger-light:   #fef2f2;  /* red-50 */
+  --color-danger-border:  #fecaca;  /* red-200 */
+  --color-danger-text:    #991b1b;  /* red-800 */
+
+  /* ====================================
+   * 状态色 — warning
+   * ==================================== */
+  --color-warning:        #f59e0b;  /* amber-500 */
+  --color-warning-light:  #fffbeb;  /* amber-50 */
+  --color-warning-text:   #92400e;  /* amber-800 */
+
+  /* ====================================
+   * 状态色 — success
+   * ==================================== */
+  --color-success:        #065f46;  /* emerald-800 */
+  --color-success-light:  #ecfdf5;  /* emerald-50 */
+  --color-success-border: #a7f3d0;  /* emerald-200 */
+
+  /* ====================================
+   * 事件类型色（P1 per-type color coding）
+   * 每类事件一对 token: 文字色 + 背景色
+   * ==================================== */
+  --color-event-outpatient:        #2563eb;  /* blue-600 — 最常见、中性 */
+  --color-event-outpatient-bg:     #eff6ff;
+  --color-event-emergency:         #dc2626;  /* red-600 — 紧急 */
+  --color-event-emergency-bg:      #fef2f2;
+  --color-event-checkup:           #059669;  /* emerald-600 — 常规、积极 */
+  --color-event-checkup-bg:        #ecfdf5;
+  --color-event-followup:          #2563eb;  /* blue-600 — 与门诊同体系 */
+  --color-event-followup-bg:       #eff6ff;
+  --color-event-vaccine:           #7c3aed;  /* violet-600 — 预防、独特 */
+  --color-event-vaccine-bg:        #f5f3ff;
+  --color-event-hospitalization:   #b45309;  /* amber-700 — 严重、长期 */
+  --color-event-hospitalization-bg: #fffbeb;
+  --color-event-other:             #6b7280;  /* gray-500 — 兜底 */
+  --color-event-other-bg:          #f3f4f6;
+
+  /* ====================================
+   * 圆角
+   * ==================================== */
+  --radius-card:    8px;    /* canonical — 卡片、面板、empty-state */
+  --radius-input:   6px;    /* canonical — input/select/textarea */
+  --radius-button:  6px;    /* 与 input 同族 */
+  --radius-badge:   4px;    /* 小型 badge、type 标签 */
+  --radius-pill:    999px;  /* 计数 pill、filter tab */
+  --radius-small:   3px;    /* 微型元素: abnormal tag */
+
+  /* ====================================
+   * 间距 — 页面布局
+   * ==================================== */
+  --space-page-max-width:   720px;  /* canonical — 所有标准 view */
+  --space-page-max-wide:    920px;  /* Dashboard + Trends（网格/图表更宽） */
+  --space-page-max-narrow:  640px;  /* Capture（单任务聚焦） */
+  --space-page-padding:     1.5rem;
+
+  /* ====================================
+   * 间距 — 卡片 / 列表
+   * ==================================== */
+  --space-card-padding:     1rem 1.25rem;     /* canonical — MemberCard、面板 */
+  --space-card-pad-tight:   0.85rem 1rem;     /* event-row、medicine-item */
+  --space-gap-list:         0.6rem;           /* 列表项间距 */
+  --space-gap-cards:        0.75rem;          /* 卡片网格间距 */
+
+  /* ====================================
+   * 字体
+   * ==================================== */
+  --font-family-base:        system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-mono:        ui-monospace, 'SF Mono', monospace;
+
+  --font-size-page-title:    1.5rem;   /* canonical h1 — 取代 1.25/1.35rem */
+  --font-size-section-title: 1.1rem;   /* h2、SettingsView section */
+  --font-size-panel-title:   1.05rem;  /* Dashboard 面板标题 */
+  --font-size-body:          0.9rem;   /* 默认正文 */
+  --font-size-meta:          0.82rem;  /* meta 信息 */
+  --font-size-small:         0.85rem;  /* btn-small、备注 */
+  --font-size-caption:       0.78rem;  /* timestamp、计数 */
+  --font-size-badge:         0.75rem;  /* 事件类型 badge */
+  --font-size-input:         0.92rem;  /* canonical — 取代 0.9/0.95rem */
+
+  --font-weight-normal:      400;
+  --font-weight-medium:      500;
+  --font-weight-semibold:    600;
+  --font-weight-bold:        700;
+
+  /* ====================================
+   * 按钮 padding / 字号
+   * ==================================== */
+  --space-btn-padding:    0.5rem 1rem;     /* canonical */
+  --space-btn-pad-small:  0.4rem 0.8rem;   /* btn-small */
+  --space-btn-pad-large:  0.6rem 1.2rem;   /* CTA、empty-state */
+  --font-size-btn:        0.88rem;
+  --font-size-btn-small:  0.85rem;
+  --font-size-btn-large:  0.92rem;
+
+  /* ====================================
+   * 阴影
+   * ==================================== */
+  --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.15);
+  --shadow-focus: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}

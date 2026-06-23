@@ -11,11 +11,8 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRepositories } from '@/composables/useRepositories';
-import type {
-  EventType,
-  FamilyMember,
-  MedicalEvent,
-} from '@/repositories';
+import EventTypeBadge from '@/components/ui/EventTypeBadge.vue';
+import type { FamilyMember, MedicalEvent } from '@/repositories';
 
 const router = useRouter();
 
@@ -31,16 +28,6 @@ const memberNameMap = computed(() => {
   }
   return m;
 });
-
-const eventTypeLabel: Record<EventType, string> = {
-  outpatient: '门诊',
-  emergency: '急诊',
-  checkup: '体检',
-  followup: '复诊',
-  vaccine: '疫苗',
-  hospitalization: '住院',
-  other: '其他',
-};
 
 async function loadEvents(): Promise<void> {
   isLoading.value = true;
@@ -131,7 +118,7 @@ onMounted(() => {
           </div>
           <div class="event-body">
             <div class="event-title-row">
-              <span class="event-type">{{ eventTypeLabel[ev.event_type] }}</span>
+              <EventTypeBadge :type="ev.event_type" />
               <span class="event-title">{{ ev.title }}</span>
             </div>
             <div class="event-meta">
@@ -152,7 +139,7 @@ onMounted(() => {
 <style scoped>
 .events-view {
   padding: 1.5rem;
-  max-width: 720px;
+  max-width: var(--space-page-max-width);
   margin: 0 auto;
 }
 
@@ -165,50 +152,50 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: var(--font-size-page-title);
 }
 
 .count-badge {
   display: inline-block;
   padding: 0.2rem 0.6rem;
-  background: #eff6ff;
-  color: #1e40af;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
   min-width: 1.6rem;
   text-align: center;
 }
 
 .hint {
-  color: #6b7280;
-  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body);
 }
 
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;
-  background: #f9fafb;
-  border-radius: 6px;
-  color: #6b7280;
+  background: var(--color-bg-page);
+  border-radius: var(--radius-card);
+  color: var(--color-text-muted);
 }
 
 .empty-title {
   margin: 0 0 0.4rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #4b5563;
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
 }
 
 .empty-hint {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-body);
 }
 
 .link {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: none;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .link:hover {
@@ -230,18 +217,18 @@ onMounted(() => {
   gap: 1rem;
   align-items: flex-start;
   text-align: left;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 0.85rem 1rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-card);
+  padding: var(--space-card-pad-tight);
   cursor: pointer;
   font-family: inherit;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .event-row:hover {
-  border-color: #2563eb;
-  background: #f8FAff;
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .event-date {
@@ -253,15 +240,15 @@ onMounted(() => {
 }
 
 .date-main {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .date-created {
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--color-text-faint);
   font-variant-numeric: tabular-nums;
 }
 
@@ -279,32 +266,22 @@ onMounted(() => {
   align-items: baseline;
 }
 
-.event-type {
-  flex-shrink: 0;
-  padding: 0.1rem 0.5rem;
-  background: #eff6ff;
-  color: #1e40af;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 .event-title {
   font-size: 1rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 
 .event-meta {
-  font-size: 0.82rem;
-  color: #6b7280;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }
 
 .event-summary {
   margin: 0.15rem 0 0;
-  font-size: 0.85rem;
-  color: #4b5563;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -314,7 +291,7 @@ onMounted(() => {
 
 .event-arrow {
   flex-shrink: 0;
-  color: #d1d5db;
+  color: var(--color-border-input);
   font-size: 1.4rem;
   line-height: 1;
   align-self: center;
@@ -323,12 +300,12 @@ onMounted(() => {
 .msg {
   margin: 0;
   padding: 0.6rem 0.8rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
+  border-radius: var(--radius-badge);
+  font-size: var(--font-size-body);
 }
 
 .msg-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 </style>
