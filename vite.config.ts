@@ -69,6 +69,12 @@ export default defineConfig({
         agent: proxyAgent,
         rewrite: (path) => path.replace(/^\/llm-proxy\/deepseek/, ''),
       },
+      // 多端同步 dev proxy: 同源访问 /api/sync/* → 本地 sync-server :3199,
+      // 避免浏览器跨源 + 不需要在 sync-server 配 CORS. 生产由 Nginx 反代.
+      '/api': {
+        target: 'http://127.0.0.1:3199',
+        changeOrigin: true,
+      },
     },
   },
   preview: {

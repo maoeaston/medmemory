@@ -466,6 +466,12 @@ function wrapHandle(promiser: PromiserFn, dbId: string): DbHandle {
  * 关闭当前数据库连接并重置单例状态。
  * PoC 和测试场景用；生产代码一般不调用。
  *
+ * 容错策略 (E2E 发现的 bug): promiser('close') 在某些状态下会抛错
+ * (例如 OPFS proxy worker 处于过渡态), 但 module-level 单例仍然需要 reset,
+ * 否则后续 importAllData 覆写 OPFS sqlite 时仍会被旧 worker 持有的状态干扰.
+ * 因此: 无论 promiser('close') 成败, 都 reset 单例; 失败时 warn 不抛错,
+ * 让 importAllData 能继续写 OPFS 文件 (此时无活跃的 db 句柄指向 OPFS).
+ *
  * @param options.unlink 若 true, 关闭后从 OPFS 删除数据库文件（用于"重置数据库"）
  */
 export async function closeDb(options?: { unlink?: boolean }): Promise<void> {
@@ -473,14 +479,22 @@ export async function closeDb(options?: { unlink?: boolean }): Promise<void> {
     return;
   }
 
+  const promiser = promiserInstance;
+  // 始终先 reset 单例状态, 即使 promiser('close') 失败也不影响后续 getDb()
+  promiserInstance = null;
+  activeDbId = null;
+  usingOpfs = false;
+
   try {
-    await promiserInstance('close', options);
+    await promiser('close', options);
   } catch (err) {
-    throw new SqliteConnectionError('close', '关闭数据库失败', err);
-  } finally {
-    promiserInstance = null;
-    activeDbId = null;
-    usingOpfs = false;
+    // promiser close 抛错不致命: 单例已 reset, OPFS 文件可被覆写.
+    // 主要观察场景: 同步 checkout 时 importAllData 调 closeDb → 写 OPFS,
+    // 此时 promiser close 偶发抛错但实际 worker 已退出.
+    console.warn(
+      '[MedMemory/db] promiser close 抛错 (已 reset 单例, 继续执行):',
+      err,
+    );
   }
 }
 

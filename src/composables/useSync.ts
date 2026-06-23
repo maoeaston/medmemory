@@ -599,18 +599,35 @@ async function checkout(): Promise<void> {
   syncState.value = 'pulling';
   syncError.value = null;
 
+  // 跟踪锁是否已经获得 (downloadSnapshot 成功 = 锁已分配给本客户端)
+  // 后续任何失败都必须释放锁, 否则服务器会卡 30 分钟 TTL
+  let lockAcquired = false;
+
   try {
     // 1. 下载快照 + 获锁
     const { zip, version, expiresAt } = await downloadSnapshot(
       clientId.value,
       clientLabel.value,
     );
+    lockAcquired = true;
 
     // 2. checkout 前备份本地数据到 OPFS (评审 S2)
-    await backupLocalBeforeCheckout();
-
     // 3. 导入服务器数据到本地
-    await importAllData(zip);
+    // 这两步任一失败都必须释放锁 (E2E 发现的 bug: importAllData 失败时
+    // 服务器仍认为我持锁, 对方等 30 分钟; 必须主动 release)
+    try {
+      await backupLocalBeforeCheckout();
+      await importAllData(zip);
+    } catch (importErr) {
+      // 静默释放锁 — 不掩盖原错误
+      try {
+        await releaseLockSilently();
+        lockAcquired = false;
+      } catch (releaseErr) {
+        console.warn('[useSync] checkout 失败后释放锁也失败:', releaseErr);
+      }
+      throw importErr;
+    }
 
     // 4. 进入 editing 状态
     serverVersion.value = version;
@@ -621,6 +638,12 @@ async function checkout(): Promise<void> {
     // 5. 启动 heartbeat
     startHeartbeat();
   } catch (e) {
+    // 兜底: 如果锁还拿着 (release 失败), 启动 polling 让 UI 提示
+    if (lockAcquired) {
+      // 极端情况: release 失败, 服务器仍认为我持锁; 等 TTL 过期
+      console.warn('[useSync] checkout failed with lock still held; will wait TTL');
+    }
+
     if (e instanceof Object && 'kind' in e) {
       const syncErr = e as SyncError;
       syncError.value = syncErr;
@@ -643,11 +666,45 @@ async function checkout(): Promise<void> {
       }
 
       syncState.value = 'error';
+    } else if (e instanceof Error && (
+      e.message.includes('close') ||
+      e.message.includes('关闭数据库') ||
+      e.message.includes('importAllData') ||
+      e.message.includes('SqliteConnection')
+    )) {
+      // 本地数据操作失败 (非网络): closeDb / importAllData / OPFS 写入
+      // 这是本地问题, 不是 offline
+      syncError.value = {
+        kind: 'server',
+        message: `本地数据导入失败: ${e.message}`,
+      };
+      syncState.value = 'error';
     } else {
       // 网络错误
       syncError.value = networkSyncError(e);
       syncState.value = 'offline';
     }
+  }
+}
+
+/**
+ * 静默释放锁 (内部 helper, 不改 syncState/syncError).
+ * checkout/checkin 失败时用, 避免掩盖原错误.
+ */
+async function releaseLockSilently(): Promise<void> {
+  const { clientId } = useSyncConfig();
+  try {
+    await syncFetch(
+      '/api/sync/lock',
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ clientId: clientId.value, force: true }),
+      },
+      DEFAULT_TIMEOUT_MS,
+    );
+  } catch (e) {
+    // 静默: 释放失败不掩盖原错误
+    console.warn('[useSync] releaseLockSilently failed:', e);
   }
 }
 
