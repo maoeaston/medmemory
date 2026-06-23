@@ -1,0 +1,15 @@
+{
+  // Cloudflare Workers static assets deployment 配置
+  // 让 wrangler 知道这是纯静态站点, 不做 framework auto-detect
+  // (auto-detect 会要求 Vite 6+, 我们用 Vite 5.4)
+  //
+  // _headers 和 _redirects 文件 Cloudflare 自动识别 (兼容 Pages classic)
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "medmemory",
+  "compatibility_date": "2024-11-06",
+  "assets": {
+    "directory": "./dist",
+    // SPA fallback: /events/3 等路由回退到 index.html
+    "not_found_handling": "single-page-application"
+  }
+}
