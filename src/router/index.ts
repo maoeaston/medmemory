@@ -68,6 +68,11 @@ const router = createRouter({
       component: () => import('@/views/MedicinesView.vue'),
     },
     {
+      path: '/growth',
+      name: 'growth',
+      component: () => import('@/views/GrowthView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

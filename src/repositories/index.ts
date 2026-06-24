@@ -15,6 +15,7 @@ import { AiInterpretationRepositoryImpl } from '@/repositories/aiInterpretationR
 import { AttachmentRepositoryImpl } from '@/repositories/attachmentRepository';
 import { EventProblemRelRepositoryImpl } from '@/repositories/eventProblemRelRepository';
 import { FamilyMemberRepositoryImpl } from '@/repositories/familyMemberRepository';
+import { GrowthRepositoryImpl } from '@/repositories/growthRepository';
 import { HealthProblemRepositoryImpl } from '@/repositories/healthProblemRepository';
 import { InboxRepositoryImpl } from '@/repositories/inboxRepository';
 import { MedicalEventRepositoryImpl } from '@/repositories/medicalEventRepository';
@@ -28,6 +29,7 @@ import { SearchRepositoryImpl } from '@/repositories/searchRepository';
  */
 export interface Repositories {
   familyMember: InstanceType<typeof FamilyMemberRepositoryImpl>;
+  growth: InstanceType<typeof GrowthRepositoryImpl>;
   medicalEvent: InstanceType<typeof MedicalEventRepositoryImpl>;
   inbox: InstanceType<typeof InboxRepositoryImpl>;
   healthProblem: InstanceType<typeof HealthProblemRepositoryImpl>;
@@ -56,6 +58,7 @@ export async function createRepositories(): Promise<Repositories> {
   const db = await getDb();
   return {
     familyMember: new FamilyMemberRepositoryImpl(db),
+    growth: new GrowthRepositoryImpl(db),
     medicalEvent: new MedicalEventRepositoryImpl(db),
     inbox: new InboxRepositoryImpl(db),
     healthProblem: new HealthProblemRepositoryImpl(db),
@@ -76,6 +79,7 @@ export {
   AttachmentRepositoryImpl,
   EventProblemRelRepositoryImpl,
   FamilyMemberRepositoryImpl,
+  GrowthRepositoryImpl,
   HealthProblemRepositoryImpl,
   InboxRepositoryImpl,
   MedicalEventRepositoryImpl,
@@ -105,6 +109,11 @@ export type {
   FamilyMemberCreateInput,
   FamilyMemberRepository,
   FamilyMemberUpdateInput,
+  GrowthRecord,
+  GrowthRecordCreateInput,
+  GrowthRecordRepository,
+  GrowthRecordUpdateInput,
+  GrowthSource,
   HealthProblem,
   HealthProblemCreateInput,
   HealthProblemRepository,

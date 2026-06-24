@@ -29,6 +29,7 @@ import schema5Sql from '@/../db/migrations/005_ai_interpretations.sql?raw';
 import schema6Sql from '@/../db/migrations/006_follow_up_date.sql?raw';
 import schema7Sql from '@/../db/migrations/007_ai_contents_nullable_attachment.sql?raw';
 import schema8Sql from '@/../db/migrations/008_medicine_quantity.sql?raw';
+import schema9Sql from '@/../db/migrations/009_growth_records.sql?raw';
 
 // ============================================================
 // 类型定义
@@ -382,7 +383,19 @@ async function runMigrations(promiser: PromiserFn): Promise<void> {
     }
   }
 
-  // 后续新增 009+ migration 在此追加 if currentVersion < 9 { ... }
+  if (currentVersion < 9) {
+    try {
+      await promiser('exec', { sql: schema9Sql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v9 (growth_records 儿童生长曲线) 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
+  }
+
+  // 后续新增 010+ migration 在此追加 if currentVersion < 10 { ... }
 }
 
 // ============================================================

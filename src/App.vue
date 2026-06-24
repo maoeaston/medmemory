@@ -29,6 +29,7 @@ onMounted(() => {
         <RouterLink to="/timeline" class="nav-link">时间线</RouterLink>
         <RouterLink to="/search" class="nav-link">搜索</RouterLink>
         <RouterLink to="/medicines" class="nav-link">药箱</RouterLink>
+        <RouterLink to="/growth" class="nav-link">生长曲线</RouterLink>
         <RouterLink to="/settings" class="nav-link">设置</RouterLink>
       </nav>
       <SyncIndicator class="sync-indicator-slot" />

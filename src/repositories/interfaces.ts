@@ -227,6 +227,29 @@ export interface Medicine {
   updated_at: string;
 }
 
+/** 生长测量来源 (growth_records.source) */
+export type GrowthSource = 'home' | 'checkup';
+
+/**
+ * 儿童生长记录 (growth_records 表, v3.5 新增)。
+ * 一次测量一行; 同日身高/体重/头围可部分填。
+ * age_months 派生自 member.birthday × measured_date (写入时由 Repository 算)。
+ */
+export interface GrowthRecord {
+  id: number;
+  member_id: number;
+  measured_date: string; // YYYY-MM-DD
+  age_months: number; // 派生月龄(含小数), 写入时由 birthday×measured_date 算
+  height_cm: number | null; // 24月前为身长 length, 应用层措辞区分
+  weight_kg: number | null;
+  head_cm: number | null; // 头围, 婴幼儿关键
+  note: string | null;
+  source: GrowthSource;
+  source_event_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================================
 // CreateInput 派生类型（自增/默认字段由实现层填）
 // ============================================================
@@ -307,6 +330,22 @@ export type MedicineCreateInput = Omit<
   source_event_id?: null;
 };
 export type MedicineUpdateInput = Partial<Omit<MedicineCreateInput, 'member_id'>>;
+
+// age_months 由实现层从 birthday×measured_date 派生, 不在 CreateInput 内;
+// update 不含 measured_date (改日期请删后重建, 避免 age_months 重算的 PATCH 复杂度)
+export type GrowthRecordCreateInput = {
+  member_id: number;
+  measured_date: string; // YYYY-MM-DD
+  height_cm: number | null;
+  weight_kg: number | null;
+  head_cm: number | null;
+  note?: string | null;
+  source?: GrowthSource; // 默认 'home'
+  source_event_id?: number | null;
+};
+export type GrowthRecordUpdateInput = Partial<
+  Omit<GrowthRecordCreateInput, 'member_id' | 'measured_date'>
+>;
 
 // ============================================================
 // 1. FamilyMemberRepository
@@ -588,6 +627,24 @@ export interface MedicineRepository {
    * @returns 按到期日升序
    */
   listExpiring(withinDays?: number): Promise<Medicine[]>;
+}
+
+// ============================================================
+// 8b. GrowthRecordRepository
+// 对应 v3.5: 儿童生长曲线 (身高/体重/头围 随月龄变化, 对照 WHO 百分位)
+// age_months 派生: create 时由 birthday×measured_date 算; update 不改 measured_date
+// ============================================================
+export interface GrowthRecordRepository {
+  create(input: GrowthRecordCreateInput): Promise<GrowthRecord>;
+  getById(id: number): Promise<GrowthRecord | null>;
+  update(id: number, input: GrowthRecordUpdateInput): Promise<GrowthRecord>;
+  delete(id: number): Promise<void>;
+
+  /** 成员的所有测量记录, 按 measured_date 升序 (折线左→右时间递增) */
+  listByMember(memberId: number): Promise<GrowthRecord[]>;
+
+  /** Dashboard "最近测量": 最新一条 */
+  getLatestByMember(memberId: number): Promise<GrowthRecord | null>;
 }
 
 // ============================================================

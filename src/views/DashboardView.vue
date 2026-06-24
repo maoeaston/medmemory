@@ -177,6 +177,15 @@ onMounted(() => {
       </span>
       <span class="trends-arrow">→</span>
     </RouterLink>
+
+    <RouterLink to="/growth" class="trends-entry">
+      <span class="trends-icon">📏</span>
+      <span class="trends-text">
+        <strong>儿童生长曲线</strong>
+        <small>身高 / 体重 对照 WHO 标准百分位</small>
+      </span>
+      <span class="trends-arrow">→</span>
+    </RouterLink>
   </main>
 </template>
 
