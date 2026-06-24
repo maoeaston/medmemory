@@ -486,10 +486,13 @@ async function handleSyncCheckout(): Promise<void> {
   syncOperateError.value = null;
   try {
     await syncCheckout();
-    // 成功后 reload (importAllData 覆写了 sqlite, 需要重建组件)
-    setTimeout(() => window.location.reload(), 400);
+    // 立即 reload — 不能用 setTimeout(reload, 400), 那 400ms 窗口内 Vue app
+    // 的 sqlite-wasm connection 还指向旧 OPFS inode, 任何 query (用户点别的
+    // 菜单 / 自动 polling) 会拿到旧数据, 直到 reload 触发 (E2E 偶发空 UI 根因).
+    // importAllData 已覆写 OPFS sqlite 字节, reload 让 useRepositories 重新打开.
+    window.location.reload();
   } catch {
-    syncOperateError.value = syncError.value?.message ?? '\u62C9\u53D6\u5931\u8D25';
+    syncOperateError.value = syncError.value?.message ?? '拉取失败';
   } finally {
     isSyncOperating.value = false;
   }
