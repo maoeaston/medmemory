@@ -267,7 +267,7 @@ onMounted(() => {
 <template>
   <main class="medicines-view">
     <header class="page-header">
-      <h1 class="page-title">💊 药箱</h1>
+      <h1 class="page-title">药箱</h1>
       <button
         type="button"
         class="btn btn-primary"
