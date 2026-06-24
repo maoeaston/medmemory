@@ -604,6 +604,29 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
+/* ===== Mobile responsive =====
+ * 默认 .medicine-item 是 flex row: info 左, actions 右。
+ * 手机宽度下三个按钮 (AI 用药指南/编辑/删除, ~200px) + flex:1 的 info 列
+ * 会让信息被挤到 ~100px 宽 → 文字挤在左侧。
+ * 解法: ≤580px 时切 column, info 全宽在前, actions 铺满在后。
+ */
+@media (max-width: 580px) {
+  .medicines-view {
+    padding: 1rem;
+  }
+
+  .medicine-item {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: stretch;
+  }
+
+  .med-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
 /* ===== Messages ===== */
 .msg {
   margin: 0;
