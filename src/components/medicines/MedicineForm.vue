@@ -43,6 +43,8 @@ interface FormState {
   expiry_date: string; // YYYY-MM, 对应 input type="month"
   storage_location: string;
   member_id: number | null; // null = 家庭共用
+  quantity: string; // 余量, 字符串绑定; buildInput 解析成 number
+  unit: string; // 单位, 自由文本
   remark: string;
 }
 
@@ -53,6 +55,8 @@ function makeDefault(): FormState {
     expiry_date: '',
     storage_location: '',
     member_id: null,
+    quantity: '',
+    unit: '',
     remark: '',
   };
 }
@@ -70,6 +74,9 @@ watch(
       next.expiry_date = val.expiry_date ?? '';
       next.storage_location = val.storage_location ?? '';
       next.member_id = val.member_id;
+      // quantity=0（含 migration 默认值）视为未记录, 编辑框留空; 真实余量回填
+      next.quantity = val.quantity > 0 ? String(val.quantity) : '';
+      next.unit = val.unit ?? '';
       next.remark = val.remark ?? '';
     }
     Object.assign(form, next);
@@ -79,11 +86,22 @@ watch(
 
 const isEdit = () => props.initialValues !== null && props.initialValues !== undefined;
 
+// 数量字段: 空串 → 0（与 DB NOT NULL DEFAULT 0 语义一致），非法输入 → 0 兜底
+function parseQuantity(raw: string): number {
+  const trimmed = raw.trim();
+  if (trimmed === '') return 0;
+  const n = Number(trimmed);
+  return isNaN(n) ? 0 : n;
+}
+
 function buildInput(): MedicineCreateInput | MedicineUpdateInput {
   const trimmedName = form.name.trim();
   if (!trimmedName) {
     throw new Error('请填写药品名称');
   }
+
+  const unit = form.unit.trim() || null;
+  const quantity = parseQuantity(form.quantity);
 
   if (isEdit()) {
     // UpdateInput 不允许 member_id, 由类型保证
@@ -93,6 +111,8 @@ function buildInput(): MedicineCreateInput | MedicineUpdateInput {
       expiry_date: form.expiry_date || null,
       storage_location: form.storage_location.trim() || null,
       remark: form.remark.trim() || null,
+      unit,
+      quantity,
     };
   }
 
@@ -103,6 +123,8 @@ function buildInput(): MedicineCreateInput | MedicineUpdateInput {
     storage_location: form.storage_location.trim() || null,
     member_id: form.member_id,
     remark: form.remark.trim() || null,
+    unit,
+    quantity,
   };
 }
 
@@ -260,6 +282,44 @@ function handleCancel(): void {
     </div>
 
     <div class="form-section">
+      <div class="form-row">
+        <span class="form-label">数量与单位</span>
+        <div class="qty-unit-group">
+          <input
+            v-model="form.quantity"
+            type="number"
+            class="form-input qty-input"
+            min="0"
+            step="any"
+            inputmode="decimal"
+            placeholder="如: 2"
+            :disabled="props.disabled"
+          />
+          <input
+            v-model="form.unit"
+            type="text"
+            class="form-input unit-input"
+            list="unit-options"
+            placeholder="如: 盒"
+            :disabled="props.disabled"
+          />
+          <datalist id="unit-options">
+            <option value="盒"></option>
+            <option value="瓶"></option>
+            <option value="片"></option>
+            <option value="支"></option>
+            <option value="袋"></option>
+            <option value="ml"></option>
+            <option value="mg"></option>
+          </datalist>
+        </div>
+        <small class="form-hint">
+          数量支持小数（液体半瓶记 15）。单位自由填写。
+        </small>
+      </div>
+    </div>
+
+    <div class="form-section">
       <label class="form-row">
         <span class="form-label">归属成员</span>
         <select
@@ -377,6 +437,20 @@ function handleCancel(): void {
 .form-input:disabled {
   background: #f9fafb;
   cursor: not-allowed;
+}
+
+.qty-unit-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.qty-input {
+  flex: 0 0 7rem;
+}
+
+.unit-input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 textarea.form-input {

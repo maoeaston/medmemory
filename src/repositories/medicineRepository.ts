@@ -37,6 +37,8 @@ const ALLOWED_UPDATE_FIELDS = [
   'expiry_date',
   'storage_location',
   'remark',
+  'unit',
+  'quantity',
 ] as const;
 
 interface MedicineRow {
@@ -46,6 +48,8 @@ interface MedicineRow {
   expiry_date: string | null; // YYYY-MM
   storage_location: string | null;
   remark: string | null;
+  unit: string | null;
+  quantity: number;
   member_id: number | null;
   photo_path: string | null;
   source_event_id: number | null;
@@ -66,8 +70,8 @@ export class MedicineRepositoryImpl implements MedicineRepository {
       this.db,
       `INSERT INTO medicines (
         name, usage, expiry_date, storage_location, remark,
-        member_id, photo_path, source_event_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        member_id, photo_path, source_event_id, unit, quantity
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         input.name,
         input.usage,
@@ -77,6 +81,8 @@ export class MedicineRepositoryImpl implements MedicineRepository {
         input.member_id,
         input.photo_path ?? null,
         input.source_event_id ?? null,
+        input.unit,
+        input.quantity,
       ],
     );
     if (id === null) {

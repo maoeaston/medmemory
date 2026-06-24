@@ -186,6 +186,12 @@ function expiryLabel(m: Medicine): string {
   return `到期 ${m.expiry_date}`;
 }
 
+// 余量标签: quantity NOT NULL DEFAULT 0；0 且无单位时视为未记录，不显示
+function quantityLabel(m: Medicine): string {
+  if (m.quantity === 0 && !m.unit) return '';
+  return `剩余 ${m.quantity}${m.unit ? ' ' + m.unit : ''}`;
+}
+
 // === CRUD handlers（MembersView 模式）===
 function openCreateModal(): void {
   editingMedicine.value = null;
@@ -333,6 +339,9 @@ onMounted(() => {
           <div class="meta-row">
             <span v-if="m.expiry_date" class="med-expiry">
               {{ expiryLabel(m) }}
+            </span>
+            <span v-if="quantityLabel(m)" class="med-qty">
+              {{ quantityLabel(m) }}
             </span>
             <span v-if="m.storage_location" class="med-loc">
               📍 {{ m.storage_location }}
@@ -572,6 +581,11 @@ onMounted(() => {
   background: var(--color-primary-light);
   padding: 0.1rem 0.5rem;
   border-radius: var(--radius-pill);
+}
+
+.med-qty {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
 }
 
 .meta-row {

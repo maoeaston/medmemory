@@ -216,6 +216,10 @@ export interface Medicine {
   expiry_date: string | null; // YYYY-MM
   storage_location: string | null;
   remark: string | null;
+  /** 单位（盒/瓶/片/支/袋/ml…），自由文本，可空 */
+  unit: string | null;
+  /** 余量；液体需小数（如半瓶 15）。NOT NULL DEFAULT 0，实体层永远 number */
+  quantity: number;
   member_id: number | null; // 可空表示家庭共用
   photo_path: string | null; // 第二阶段
   source_event_id: number | null; // 第二阶段

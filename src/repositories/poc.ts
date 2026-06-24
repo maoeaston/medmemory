@@ -418,6 +418,8 @@ export async function runRepositorySmokeTest(): Promise<SmokeTestResult> {
       storage_location: '药箱A',
       remark: 'RepoTest 药品',
       member_id: memberId,
+      unit: '瓶',
+      quantity: 1,
     });
     medicineId = m.id;
     return m;

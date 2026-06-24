@@ -28,6 +28,7 @@ import schema4Sql from '@/../db/migrations/004_event_ai_suggestions.sql?raw';
 import schema5Sql from '@/../db/migrations/005_ai_interpretations.sql?raw';
 import schema6Sql from '@/../db/migrations/006_follow_up_date.sql?raw';
 import schema7Sql from '@/../db/migrations/007_ai_contents_nullable_attachment.sql?raw';
+import schema8Sql from '@/../db/migrations/008_medicine_quantity.sql?raw';
 
 // ============================================================
 // 类型定义
@@ -369,7 +370,19 @@ async function runMigrations(promiser: PromiserFn): Promise<void> {
     }
   }
 
-  // 后续新增 008+ migration 在此追加 if currentVersion < 8 { ... }
+  if (currentVersion < 8) {
+    try {
+      await promiser('exec', { sql: schema8Sql });
+    } catch (err) {
+      throw new SqliteConnectionError(
+        'migration',
+        `Schema migration v8 (medicines.unit/quantity 药箱余量) 失败（当前 version=${currentVersion}）`,
+        err,
+      );
+    }
+  }
+
+  // 后续新增 009+ migration 在此追加 if currentVersion < 9 { ... }
 }
 
 // ============================================================
