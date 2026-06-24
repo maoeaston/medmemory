@@ -70,6 +70,8 @@ export interface ImportSummary {
   blobImported: number;
   /** 删除的孤儿附件数（存在于当前 IDB 但不在 zip 里） */
   blobDeletedOrphans: number;
+  /** 从 config.json 应用到 localStorage 的配置项数 (0 = zip 里没 config.json) */
+  configApplied: number;
 }
 
 interface BackupManifest {
@@ -90,6 +92,33 @@ const SQLITE_OPFS_FILENAME = 'medmemory.sqlite3';
 const SQLITE_ZIP_PATH = 'medmemory.sqlite3';
 const MANIFEST_ZIP_PATH = 'manifest.json';
 const BLOB_ZIP_PREFIX = 'blobs/';
+const CONFIG_ZIP_PATH = 'config.json';
+
+/**
+ * 备份范围内 localStorage 配置 key 白名单。
+ *
+ * 用户决策 (PRD 取舍 #?): "全加" — AI 配置 + sync 配置随 zip 明文流转, 跨设备/换浏览器不重填。
+ *
+ * 排除 medmemory:sync:clientId:
+ *   clientId 是 crypto.randomUUID() 生成的 per-device UUID (useSyncConfig.ts)。
+ *   如果设备 B 导入设备 A 的 clientId, 服务器看到两端 clientId 相同,
+ *   checkout 时把 A 已持有的锁误判为 "B 自己已持有", 直接破坏多端互斥语义。
+ *   clientId 必须每设备独立, 不在备份范围。
+ *
+ * 注: clientLabel 是用户填的显示名 (如 "爸爸的手机"), 跨设备导入后用户可能要重填
+ *     以反映新设备身份, 但它不是机器标识, 列入备份。
+ */
+const BACKUP_CONFIG_KEYS = [
+  'medmemory:ai:ocr:apiKey',
+  'medmemory:ai:ocr:baseUrl',
+  'medmemory:ai:ocr:model',
+  'medmemory:ai:health-agent:apiKey',
+  'medmemory:ai:health-agent:baseUrl',
+  'medmemory:ai:health-agent:model',
+  'medmemory:sync:serverUrl',
+  'medmemory:sync:token',
+  'medmemory:sync:clientLabel',
+] as const;
 
 // ============================================================
 // 辅助
@@ -112,6 +141,45 @@ function zipPathToStorageKey(zipPath: string): string {
 /** 当前 UTC ISO 时间戳 */
 function nowUtcIso(): string {
   return new Date().toISOString();
+}
+
+/**
+ * 从 localStorage 收集白名单内的非空配置。
+ * 返回 key→value 字典; 任何 key 缺失或空串都跳过。
+ */
+function collectConfig(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    for (const key of BACKUP_CONFIG_KEYS) {
+      const v = localStorage.getItem(key);
+      if (v && v.trim()) out[key] = v;
+    }
+  } catch {
+    // localStorage 不可用 (隐私模式): 返回空对象, 备份继续 (不含 config.json)
+  }
+  return out;
+}
+
+/**
+ * 把 config 字典应用回 localStorage, 只写白名单内 + 非空的项。
+ * 返回成功写入的项数。
+ */
+function applyConfig(config: unknown): number {
+  if (typeof config !== 'object' || config === null) return 0;
+  const obj = config as Record<string, unknown>;
+  let applied = 0;
+  try {
+    for (const key of BACKUP_CONFIG_KEYS) {
+      const v = obj[key];
+      if (typeof v === 'string' && v) {
+        localStorage.setItem(key, v);
+        applied++;
+      }
+    }
+  } catch {
+    // localStorage 不可用: 静默 (导入主体依然成功, 但配置未应用)
+  }
+  return applied;
 }
 
 // ============================================================
@@ -151,8 +219,12 @@ export async function exportAllData(
     onProgress?.({ phase: 'read-blobs', current: i + 1, total: keys.length });
   }
 
-  // 4. 加 sqlite + manifest
+  // 4. 加 sqlite + config + manifest
   zip.file(SQLITE_ZIP_PATH, sqliteBytes);
+  const config = collectConfig();
+  if (Object.keys(config).length > 0) {
+    zip.file(CONFIG_ZIP_PATH, JSON.stringify(config, null, 2));
+  }
   const manifest: BackupManifest = {
     schema_version: SCHEMA_VERSION,
     exported_at: nowUtcIso(),
@@ -287,10 +359,27 @@ export async function importAllData(
     });
   }
 
+  // 6. 应用 config.json (可选, 旧备份没有此文件 → configApplied=0)
+  // 白名单 + 类型校验在 applyConfig 内, 防止 zip 里塞乱七八糟 key.
+  // 不抛错: config 应用失败不阻塞主数据导入, UI reload 后用户看到旧 config 也能用.
+  let configApplied = 0;
+  const configFile = zip.file(CONFIG_ZIP_PATH);
+  if (configFile !== null) {
+    try {
+      const configText = await configFile.async('string');
+      const parsed = JSON.parse(configText);
+      configApplied = applyConfig(parsed);
+    } catch (e) {
+      // config.json 解析失败: 记 console.warn 但不阻塞导入
+      console.warn('[useDataBackup] config.json 解析失败, 跳过配置应用:', e);
+    }
+  }
+
   return {
     sqliteBytes: sqliteBytes.byteLength,
     blobImported: imported,
     blobDeletedOrphans: orphansDeleted,
+    configApplied,
   };
 }
 

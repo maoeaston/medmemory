@@ -147,7 +147,6 @@ const failureCount = computed(() => savedResults.value.filter((r) => !r.ok).leng
         type="file"
         accept="image/*"
         multiple
-        capture="environment"
         @change="handleFileSelect"
       />
       📷 拍照 / 选择图片

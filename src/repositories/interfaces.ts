@@ -615,4 +615,14 @@ export interface SearchRepository {
     keyword: string,
     filter?: SearchFilter
   ): Promise<SearchResult[]>;
+
+  /**
+   * 最近处理的 OCR 内容（按 ai_contents.created_at DESC, 即 OCR 完成时间倒序）。
+   * 用途: SearchView 默认状态展示, 让用户在没输入关键词时也能看到最近归档内容。
+   * snippet: OCR 全文前 200 字符（无关键词锚点, 从头截取）。
+   */
+  listRecent(
+    limit: number,
+    filter?: SearchFilter
+  ): Promise<SearchResult[]>;
 }

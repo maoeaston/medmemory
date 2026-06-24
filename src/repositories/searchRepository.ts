@@ -207,4 +207,61 @@ export class SearchRepositoryImpl implements SearchRepository {
     const rows = await selectMany<SearchRow>(this.db, sql, fullBind);
     return rows.map(toSearchResult);
   }
+
+  async listRecent(
+    limit: number,
+    filter?: SearchFilter,
+  ): Promise<SearchResult[]> {
+    // 与 searchByKeyword 同一张 JOIN, 区别:
+    //   - WHERE 只过滤 content_type + filter（无 LIKE）
+    //   - snippet: substr(ac.content, 1, 200)（无关键词锚点, 从头截取）
+    //   - ORDER BY ac.created_at DESC（OCR 处理时间倒序, 非 attachment 创建时间）
+    const where: string[] = [`ac.content_type = 'ocr_fulltext'`];
+    const bind: unknown[] = [];
+
+    if (filter?.memberId !== undefined) {
+      where.push('me.member_id = ?');
+      bind.push(filter.memberId);
+    }
+    if (filter?.from !== undefined) {
+      where.push('me.event_date >= ?');
+      bind.push(filter.from);
+    }
+    if (filter?.to !== undefined) {
+      where.push('me.event_date <= ?');
+      bind.push(filter.to);
+    }
+
+    const sql = `
+      SELECT
+        a.id AS a_id, a.event_id AS a_event_id, a.file_name AS a_file_name,
+        a.file_type AS a_file_type, a.storage_key AS a_storage_key,
+        a.doc_type AS a_doc_type, a.subtype AS a_subtype, a.tags AS a_tags,
+        a.processing_status AS a_processing_status, a.processing_error AS a_processing_error,
+        a.ai_generated AS a_ai_generated, a.created_at AS a_created_at,
+
+        substr(ac.content, 1, 200) AS _snippet,
+
+        me.id AS me_id, me.member_id AS me_member_id, me.event_date AS me_event_date,
+        me.hospital AS me_hospital, me.department AS me_department,
+        me.title AS me_title, me.event_type AS me_event_type, me.summary AS me_summary,
+        me.next_visit_date AS me_next_visit_date,
+        me.created_at AS me_created_at, me.updated_at AS me_updated_at,
+
+        fm.id AS fm_id, fm.name AS fm_name, fm.nickname AS fm_nickname,
+        fm.birthday AS fm_birthday, fm.gender AS fm_gender,
+        fm.allergies AS fm_allergies, fm.chronic_conditions AS fm_chronic_conditions,
+        fm.current_medications AS fm_current_medications, fm.remark AS fm_remark,
+        fm.created_at AS fm_created_at, fm.updated_at AS fm_updated_at
+      FROM ai_contents ac
+      JOIN attachments a ON a.id = ac.attachment_id
+      LEFT JOIN medical_events me ON me.id = a.event_id
+      LEFT JOIN family_members fm ON fm.id = me.member_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY ac.created_at DESC
+      LIMIT ?`;
+
+    const rows = await selectMany<SearchRow>(this.db, sql, [...bind, limit]);
+    return rows.map(toSearchResult);
+  }
 }

@@ -537,7 +537,7 @@ onMounted(() => {
     <section class="settings-section">
       <h2 class="section-title">数据备份</h2>
       <p class="section-desc">
-        把全部数据（家庭成员 / 事件 / 附件原件等）打包成 zip 下载保存。
+        把全部数据（家庭成员 / 事件 / 附件原件 / AI 产出 / AI 与同步配置）打包成 zip 下载保存。
         建议定期导出, 浏览器清缓存或换设备会导致数据丢失。
       </p>
 
@@ -568,7 +568,7 @@ onMounted(() => {
       <h2 class="section-title">数据恢复</h2>
       <p class="section-desc">
         从之前导出的 zip 文件恢复。<strong class="warn">会覆盖当前所有数据</strong>,
-        包括删除当前 IDB 中不在 zip 里的附件原件。
+        包括删除当前 IDB 中不在 zip 里的附件原件, 以及覆盖 AI/同步配置到 localStorage。
       </p>
 
       <div class="action-row">
@@ -602,6 +602,7 @@ onMounted(() => {
       <p v-if="importSummary" class="msg msg-success">
         已导入 {{ importSummary.blobImported }} 个附件,
         清理 {{ importSummary.blobDeletedOrphans }} 个孤儿附件,
+        应用 {{ importSummary.configApplied }} 项 AI/同步配置,
         数据库 {{ formatSize(importSummary.sqliteBytes) }}。正在重载...
       </p>
     </section>
