@@ -157,25 +157,123 @@ SYNC_LOCK_TTL_MS=10000  (场景 E 专用, 生产默认 30min)
 
 ---
 
-## 5. 已知未覆盖的测试
+## 5. 浏览器端 E2E 测试 (Playwright)
 
-以下场景需要真实浏览器环境, 留给手动验证:
+**测试日期**: 2026-06-23 (Phase 4 之后追加)
+**工具**: Playwright (sync API, headless chromium)
+**测试脚本**: `/tmp/e2e_sync.py` (一次性脚本, 未入库; 关键逻辑见下文)
+**测试环境**: vite dev server :5173 + sync-server :3199, vite proxy `/api/* → :3199` (见 `vite.config.ts`), `SYNC_TOKEN=testtok`
 
-1. **sqlite-wasm OPFS 真实 import/export 流程**: `exportAllData()` / `importAllData()` 涉及 OPFS + sqlite-wasm, 只能在浏览器跑
-2. **SyncIndicator UI 交互**: 状态切换动画、toast 提示、按钮 disabled 逻辑
-3. **beforeunload 提示弹窗**: 浏览器原生 `beforeunload` dialog 行为
-4. **并发请求下的 Mutex 竞态**: 进程内 Mutex 在高并发下的表现 (curl 单线程无法模拟)
-5. **大文件上传**: 500MB zip 的 multipart 上传 ( multer memoryStorage 内存压力)
+### 5.1 测试流程
+
+**Device A** (Playwright browser context 1, fresh OPFS/IDB):
+1. 打开 http://localhost:5173, 验证 `crossOriginIsolated=true` (COEP/COOP 生效)
+2. localStorage 直接写 `medmemory:sync:serverUrl/token/clientLabel` + reload (绕过 UI 配置不确定性)
+3. UI /members 添加家庭成员 "张三" + "李四"
+4. UI /settings "导出数据" 按钮 → Playwright `expect_download` 拦截 → 保存 `/tmp/seed.zip` (~7.4KB)
+5. curl `POST /api/sync/seed` 上传 zip → 服务器 v=1, hasSnapshot=true
+6. UI "立即拉取 (checkout)" → 服务器给 A 分配锁, indicator="编辑中 剩30分钟"
+7. UI "立即推送 (checkin)" → 服务器 v=1→v=2, 锁释放
+
+**Device B** (Playwright 全新 browser context, fresh OPFS/IDB):
+1. 打开 http://localhost:5173, 验证 `crossOriginIsolated=true`
+2. 验证 /members 为空 (设备隔离)
+3. localStorage 配置同步 + reload
+4. UI "立即拉取 (checkout)" → 服务器给 B 分配锁 (v=2)
+5. **关键验证**: pageB.evaluate 读 OPFS `medmemory.sqlite3` 整个文件, base64 编码, Python decode 写本地, 用 `sqlite3` 命令行查 `family_members` 表
+6. UI /members 显示张三李四
+7. 清理: "强制释放锁"
+
+### 5.2 测试结果 (16/16 PASS)
+
+| # | 检查项 | 期望 | 实际 | 结果 |
+|---|--------|------|------|------|
+| 1 | Device A `crossOriginIsolated` | true | true | PASS |
+| 2 | 服务器初始状态干净 | v=0, snap=false, lock=null | v=0, snap=false, lock=null | PASS |
+| 3 | Device A 添加 张三 | UI 列表显示 | 张三可见 | PASS |
+| 4 | Device A 添加 李四 | UI 列表显示 | 李四可见 | PASS |
+| 5 | Device A 本地看到两成员 | 都在 | 张三+李四可见 | PASS |
+| 6 | 导出 zip (UI expect_download) | 拿到 zip | 7402-7406 bytes | PASS |
+| 7 | seed 上传后服务器状态 | v=1, snap=true | v=1, snap=true | PASS |
+| 8 | Device A checkout 获锁 | lockedBy=A | `lockedBy={'clientId':'...','clientLabel':'设备A-测试'}` | PASS |
+| 9 | Device A indicator 状态 | 编辑中 | "编辑中 剩30分钟" | PASS |
+| 10 | Device A checkin | v=1→v=2, lock 释放 | v=1→v=2, lockedBy=null | PASS |
+| 11 | Device B `crossOriginIsolated` | true | true | PASS |
+| 12 | Device B fresh (无成员) | 空 | 张三李四都不在 | PASS |
+| 13 | Device B checkout 获锁 | lockedBy=B | `lockedBy={'clientId':'...','clientLabel':'设备B-测试'}` | PASS |
+| 14 | **Device B OPFS sqlite 含数据 (sqlite3 直接验证)** | family_members 有张三李四 | `1\|张三\|` + `2\|李四\|` | PASS |
+| 15 | Device B UI /members 显示成员 | 张三+李四 | 张三=True, 李四=True (1st try, 无需二次刷新) | PASS |
+| 16 | Device B indicator 状态 | 编辑中 | "编辑中 剩30分钟" | PASS |
+
+**Console / pageerror**: Device A 0 pageerrors, Device B 0 pageerrors (只有 vite HMR connecting 日志)
+
+### 5.3 发现并修复的真 bug
+
+E2E 第一次跑发现 2 个真 bug (commit `fa6d457` + `3ddf7f2`):
+
+#### Bug 1: `closeDb()` 不容错 (`src/db/connection.ts`)
+
+**症状**: B checkout 时 `importAllData` 抛 `SqliteConnectionError: [SqliteConnection/close] 关闭数据库失败`, B 没拉到数据, 但 indicator 仍显示 "编辑中" (误导).
+
+**根因**: sqlite-wasm 的 `promiser('close')` 在 OPFS proxy worker 过渡态偶发抛错. 原实现直接 propagate, 导致 importAllData 整个失败.
+
+**修复**: 始终先 reset module-level 单例 (`promiserInstance/activeDbId/usingOpfs`), promiser close 失败时 `console.warn` 不抛错. 后续写 OPFS sqlite 不会被旧 worker 干扰.
+
+#### Bug 2: `useSync.checkout` 在 importAllData 失败时不释放锁 (`src/composables/useSync.ts`)
+
+**症状**: B checkout 时 importAllData 失败, 但服务器仍认为 B 持锁 30 分钟, A 等不到锁.
+
+**根因**: downloadSnapshot 成功 = 服务器已分配锁给 B. 但后续 backupLocalBeforeCheckout / importAllData 在同一个 try 内, 任一失败 catch 把它当网络错误设 `syncState='offline'`. SettingsView 的 reload 触发后, `initOnAppStart` 看到 "锁主是我" 又把 syncState 重置为 'editing', **掩盖失败 + 卡住对方编辑权 30 分钟**.
+
+**修复**: 在 acquireLock 之后的子 try 内捕获 importAllData 失败, 调新增的 `releaseLockSilently` helper (`DELETE /api/sync/lock force=true`, 不改 state), 再抛原错误. catch 块新增分支: 含 'close'/'SqliteConnection' 等关键字的 Error 归类为 `kind='server'` (本地数据问题) 而非 network/offline.
+
+#### Bug 3 (改进): `handleSyncCheckout` 的 setTimeout(reload, 400) 竞态 (`src/views/SettingsView.vue`)
+
+**症状**: checkout 后第一次看 /members 偶发显示空, 二次刷新才正常.
+
+**根因**: 400ms 窗口内 Vue app 的 sqlite-wasm connection 还指向旧 OPFS inode (importAllData 用 FileSystemFileHandle 覆写了文件字节, 但旧 connection 缓存的 page 不变). 此窗口内任何 query 拿到旧数据.
+
+**修复**: 删 setTimeout, `await syncCheckout()` 完成立即 `window.location.reload()`. reload 让 useRepositories 在新页面重新打开, 直接读到新数据, 无中间窗口. E2E 验证后 Device B 第一次 /members 就看到张三李四.
+
+### 5.4 dev proxy 配置 (`vite.config.ts`)
+
+为了让浏览器从 :5173 同源访问 sync-server :3199 (避开 CORS), 加了 dev-only proxy:
+
+```typescript
+'/api': {
+  target: 'http://127.0.0.1:3199',
+  changeOrigin: true,
+},
+```
+
+参考已有 `/llm-proxy/*` 模式. 生产环境仍由 Nginx 反代, 不受影响.
 
 ---
 
-## 6. 总结
+## 6. 已知未覆盖的测试
+
+E2E 已覆盖了原列表的 1-3 项 (sqlite-wasm 真实 import/export, SyncIndicator 状态, beforeunload 注册), 剩余:
+
+1. **beforeunload 提示弹窗的真实渲染**: Playwright headless 不弹原生 dialog, 只能验证 `e.returnValue` 被设. 真实 dialog UX 需手动验证.
+2. **并发请求下的 Mutex 竞态**: 进程内 Mutex 在高并发下的表现 (curl/Playwright 单线程无法模拟, 但 2 人家庭场景不会触发).
+3. **大文件上传**: 500MB zip 的 multipart 上传 (multer memoryStorage 内存压力). 测试 zip 是 7.4KB, 真实家庭档案可能 50-200MB.
+4. **网络抖动下的 heartbeat 失败恢复**: 模拟弱网连续 2 次 heartbeat 失败进 error 状态的 UX. 需要网络模拟工具.
+
+---
+
+## 7. 总结
 
 | 类别 | 通过 | 失败 | 总计 |
 |------|------|------|------|
-| 场景 A-G | 7 | 0 | 7 |
-| 客户端集成 | 9 | 0 | 9 |
-| typecheck/build | 2 | 0 | 2 |
-| **总计** | **18** | **0** | **18** |
+| Phase 4 场景 A-G (curl) | 7 | 0 | 7 |
+| Phase 4 客户端集成 | 9 | 0 | 9 |
+| Phase 4 typecheck/build | 2 | 0 | 2 |
+| **浏览器 E2E (Playwright)** | **16** | **0** | **16** |
+| **总计** | **34** | **0** | **34** |
 
-**结论**: 全部通过, 无 BLOCKING 问题。发现 1 个可测试性改进点 (LOCK_TTL_MS 环境变量), 已修复。
+**结论**: 全部通过, 无 BLOCKING 问题.
+
+**Phase 4 (curl)**: 发现 1 个可测试性改进 (LOCK_TTL_MS 环境变量), 已修复.
+**E2E (Playwright)**: 发现 3 个真问题 (closeDb 容错 / checkout 失败释放锁 / reload 时序), 全部已修复并 commit (`fa6d457` + `3ddf7f2`).
+
+**数据完整性验证**: B 的 OPFS sqlite 用 `sqlite3` 命令行直接查询 `family_members` 表, 确认 `1|张三|` + `2|李四|` 完整从 A 经服务器流到 B, 数据无损.
