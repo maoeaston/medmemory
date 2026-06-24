@@ -2,7 +2,12 @@
 
 > 目标：在已部署 MedMemory 前端的腾讯服务器（124.220.104.199）上加挂 sync-server，让多端同步可用。
 >
-> 现状：前端 PWA 已通过 `cp -r dist/* /var/www/medmemory/` 部署，Nginx 监听 8080 (HTTP) / 8443 (HTTPS)。本清单**只加 sync 后端**，不动前端文件。
+> 现状（2026-06-24 龙虾首次部署后修订）：
+> - 前端 PWA 已通过 `cp -r dist/* /var/www/medmemory/` 部署
+> - Web Server 实际是 **Caddy**（不是 Nginx），监听 8080 (HTTP) / 8443 (HTTPS)
+> - Node 22 通过 nvm 安装在 `/root/.nvm/...`
+>
+> 本清单**只加 sync 后端**，不动前端文件。
 >
 > 执行人：龙虾（root 或 sudo 权限）。所有命令在服务器本地执行。
 
@@ -13,9 +18,7 @@
 ```bash
 # Node 18+ 必须（sync-server 用 ESM + Express 4.21 + multer 2.0）
 node -v
-# 期望: v18.x 或更高。若低于 18 或未装:
-#   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
-#   sudo apt install -y nodejs
+# 期望: v18.x 或更高。本服务器实测 v22.22.2 (nvm 安装)
 
 # npm
 npm -v
@@ -26,6 +29,10 @@ ls /opt/medmemory/server/sync-server.js
 
 # 端口 3001 未占用（sync-server 内部端口）
 ss -lnt | grep :3001 || echo "3001 空闲, OK"
+
+# 确认 Web Server 是 Caddy (不是 Nginx)
+sudo systemctl status caddy --no-pager | head -5
+# 期望: active (running)。若实际是 Nginx, 参考 deploy/sync-nginx.conf.example
 ```
 
 ---
@@ -49,9 +56,11 @@ sudo chmod 750 /var/www/medmemory-sync
 ```bash
 sudo mkdir -p /opt/medmemory-sync
 sudo cp -r /opt/medmemory/server/* /opt/medmemory-sync/
-sudo chown -R www-data:www-data /opt/medmemory-sync
+
+# npm install 用 root 跑（www-data 的 PATH 没有 npm，尤其 nvm 安装的 Node）
 cd /opt/medmemory-sync
-sudo -u www-data npm install --omit=dev
+sudo npm install --omit=dev
+sudo chown -R www-data:www-data /opt/medmemory-sync
 ```
 
 依赖只有 `express` + `multer`，约 70 个包，几秒装完。
@@ -77,21 +86,41 @@ sudo chmod 600 /opt/medmemory-sync/.sync-token
 
 ## 4. 安装 systemd service
 
+### 4.1 处理 Node 二进制路径（nvm 场景必做）
+
+模板里 `ExecStart=/usr/bin/node`，但 nvm 装的 Node 在 `/root/.nvm/versions/node/vXX.X.X/bin/node`，`www-data` 无法访问 `/root/`（权限 700）。两种解法二选一：
+
 ```bash
-# 4.1 拷贝模板（repo 自带）
+# 解法 A（推荐, 简单）: 复制 node 二进制到 /usr/local/bin
+sudo cp "$(which node)" /usr/local/bin/node
+sudo chmod 755 /usr/local/bin/node
+# 之后 service 里 ExecStart 用 /usr/local/bin/node
+
+# 解法 B: 系统级安装 Node（apt 或 nodesource），让 /usr/bin/node 真存在
+```
+
+### 4.2 拷贝模板 + 替换占位符
+
+```bash
 sudo cp /opt/medmemory/deploy/medmemory-sync.service /etc/systemd/system/
 
-# 4.2 用步骤 3 生成的 token 替换占位符
+# 替换 token
 sudo sed -i "s|CHANGE_ME_TO_YOUR_TOKEN|$TOKEN|" /etc/systemd/system/medmemory-sync.service
-# 验证替换成功 (应显示实际 token, 不是 CHANGE_ME):
-grep SYNC_TOKEN /etc/systemd/system/medmemory-sync.service
 
-# 4.3 启动
+# 替换 Node 路径（如果走解法 A）
+sudo sed -i "s|/usr/bin/node|/usr/local/bin/node|" /etc/systemd/system/medmemory-sync.service
+
+# 验证替换（应显示实际 token + 实际 node 路径）
+grep -E "SYNC_TOKEN|ExecStart" /etc/systemd/system/medmemory-sync.service
+```
+
+### 4.3 启动
+
+```bash
 sudo systemctl daemon-reload
 sudo systemctl enable medmemory-sync
 sudo systemctl start medmemory-sync
 
-# 4.4 检查运行状态
 sudo systemctl status medmemory-sync --no-pager
 # 期望: active (running)。若 failed, 看:
 #   sudo journalctl -u medmemory-sync -n 50 --no-pager
@@ -101,67 +130,78 @@ sudo systemctl status medmemory-sync --no-pager
 - `Permission denied: /var/www/medmemory-sync` → `www-data` 没有该目录写权限，回步骤 1
 - `Cannot find module 'express'` → 步骤 2 的 `npm install` 没在 `/opt/medmemory-sync/` 里跑
 - `EADDRINUSE :::3001` → 3001 被占，回步骤 0 检查
+- `Status=203/EXEC` 或 `code=exited status=203` → Node 路径错，回 4.1
 
 ---
 
-## 5. 改 Nginx 配置（关键，**编辑不替换**）
+## 5. 改 Caddy 配置（关键，**编辑不替换**）
 
-Nginx 当前已有监听 8080 + 8443 的 server block。**只加两段内容**：COEP 头 + `/api/` 反代。
+Caddy 当前已有监听 8080 + 8443 的配置。**只加两段内容**：COEP 头 + `/api/` 反代。
 
-### 5.1 先找配置文件位置
+### 5.1 找 Caddyfile 位置
 
 ```bash
-# 主配置
-sudo nginx -T 2>/dev/null | grep -E "server_name|listen|root " | head -20
 # 常见位置:
-#   /etc/nginx/sites-available/maohedong.top
-#   /etc/nginx/conf.d/medmemory.conf
-#   /etc/nginx/nginx.conf (单文件场景)
+ls /etc/caddy/Caddyfile 2>/dev/null && echo "found"
+# 或通过 systemd 看启动参数:
+sudo systemctl cat caddy | grep -i "ExecStart"
 ```
 
-### 5.2 编辑对应 server block
+### 5.2 编辑 site block
 
-打开步骤 5.1 找到的配置文件，**在 HTTPS server block 内**（`listen 8443` 那个）加两段：
+**⚠️ Caddy 的 `try_files` 会被编译到路由最前面**，导致 `/api/*` 在到反代前就被改写成 `/index.html`。**必须用 `handle` 块显式控制顺序**，`/api/*` 在前，兜底 `handle` 在后：
 
-```nginx
-server {
-    listen 8443 ssl;
-    server_name maohedong.top;
-    # ... 现有 ssl_certificate / root / location / 等保持不动 ...
-
-    # === 新增 1: COOP/COEP/CORP 全局头 (sqlite-wasm OPFS 硬约束) ===
-    # always = 确保 4xx/5xx 错误响应也带头
-    add_header Cross-Origin-Opener-Policy "same-origin" always;
-    add_header Cross-Origin-Embedder-Policy "require-corp" always;
-    add_header Cross-Origin-Resource-Policy "same-origin" always;
-
-    # === 新增 2: /api/ 反代到 sync-server ===
-    location /api/ {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # zip 上传可能大
-        client_max_body_size 500M;
-        proxy_request_buffering off;
-        proxy_buffering off;
-        proxy_read_timeout 300s;
+```caddyfile
+maohedong.top:8443 {
+    # === COOP/COEP/CORP 全局头 (sqlite-wasm OPFS 硬约束) ===
+    header {
+        Cross-Origin-Opener-Policy "same-origin"
+        Cross-Origin-Embedder-Policy "require-corp"
+        Cross-Origin-Resource-Policy "same-origin"
     }
 
-    # 现有 location / 保持不动
+    # === /api/ 反代到 sync-server（必须在前）===
+    handle /api/* {
+        reverse_proxy 127.0.0.1:3001 {
+            # 大文件上传: zip 可能几十 MB
+            transport http {
+                read_timeout 300s
+            }
+        }
+        # Caddy 默认不限制 request body, 但加显式提示
+        request_body {
+            max_size 500MB
+        }
+    }
+
+    # === 静态文件兜底（必须在后）===
+    handle {
+        encode gzip zstd
+        root * /var/www/medmemory
+        try_files {path} /index.html
+        file_server
+    }
+}
+
+# 8080 HTTP site block 加同样内容（COEP 是硬约束, 不加 sqlite-wasm 启动失败）
+:8080 {
+    # ... 同上结构 ...
 }
 ```
 
-**HTTP server block（`listen 8080`）也加同样的内容**，保证 http://124.220.104.199:8080 也能同步（COEP 是硬约束，不加会导致 sqlite-wasm 启动失败）。
+**关键约束**：
+- 不要把 `try_files` 写在 site 顶层（会被 Caddy 编译到路由前）
+- `handle /api/*` 必须在兜底 `handle {}` 之前
+- `header {}` 块对所有响应生效（含 4xx/5xx），等价于 Nginx 的 `always`
 
 ### 5.3 校验 + 重载
 
 ```bash
-sudo nginx -t
-# 期望: syntax is ok / test is successful
-sudo nginx -s reload
+sudo caddy validate --config /etc/caddy/Caddyfile
+# 期望: OK
+
+sudo systemctl reload caddy
+# 不是 restart! reload 不丢连接
 ```
 
 ---
@@ -171,7 +211,8 @@ sudo nginx -s reload
 ```bash
 # 6.1 state 端点（无需 auth，公开）
 curl -s https://maohedong.top:8443/api/sync/state
-# 期望: {"state":"idle","version":0,"lock":null}
+# 期望: {"lockedBy":null,"lockedAt":null,"version":0,"expiresAt":null,
+#        "hasSnapshot":false,"snapshotSize":0,"serverTime":"..."}
 
 # 6.2 带认证的 snapshot 端点（应返回 NO_SNAPSHOT, 因为还没 seed）
 TOKEN=$(sudo cat /opt/medmemory-sync/.sync-token)
@@ -187,10 +228,15 @@ curl -sI https://maohedong.top:8443/ | grep -i "cross-origin"
 
 curl -sI https://maohedong.top:8443/api/sync/state | grep -i "cross-origin"
 # 同样三行（/api/ 也要带, 否则 fetch 会被 COEP 拦截）
+
+# HTTP 8080 同样验证一遍（COEP 是硬约束, HTTP 也要带）
+curl -sI http://124.220.104.199:8080/ | grep -i "cross-origin"
+curl -sI http://124.220.104.199:8080/api/sync/state | grep -i "cross-origin"
 ```
 
-**6.1 返回 `Connection refused` 或 502**：systemd 没起来 → 回步骤 4.4
-**6.3 缺头**：Nginx 没生效 → 回步骤 5.3，确认改的是 8443 server block
+**6.1 返回 `Connection refused` 或 502**：systemd 没起来 → 回步骤 4.3
+**6.3 缺头**：Caddy 没生效 → 回步骤 5.3，确认改对了 site block
+**6.3 `/api/` 缺头但前端有**：`handle /api/*` 块漏了 `header` 指令 → site 级 `header {}` 应该已覆盖, 但若把 header 移进了 `handle {}` 里就会漏
 
 ---
 
@@ -224,8 +270,8 @@ sudo cp -r dist/* /var/www/medmemory/
 # 8.2 sync-server 更新（仅当 server/ 下文件有变化时）
 if git diff HEAD@{1} --stat -- server/ | grep -q "server/"; then
   sudo cp -r /opt/medmemory/server/* /opt/medmemory-sync/
+  cd /opt/medmemory-sync && sudo npm install --omit=dev
   sudo chown -R www-data:www-data /opt/medmemory-sync
-  cd /opt/medmemory-sync && sudo -u www-data npm install --omit=dev
   sudo systemctl restart medmemory-sync
   echo "sync-server 已更新"
 fi
@@ -239,18 +285,21 @@ fi
 
 | 症状 | 排查命令 | 可能原因 |
 |---|---|---|
-| 客户端连不上 | `curl https://maohedong.top:8443/api/sync/state` | Nginx 没配 / 端口未放行 |
+| 客户端连不上 | `curl https://maohedong.top:8443/api/sync/state` | Caddy 没配 / 端口未放行 |
 | 502 Bad Gateway | `sudo systemctl status medmemory-sync` | sync-server 挂了 |
 | 401 Unauthorized | 检查客户端 Token 与 `/opt/medmemory-sync/.sync-token` 一致 | Token 不匹配 |
-| sqlite-wasm 启动失败 | `curl -sI https://maohedong.top:8443/ \| grep cross-origin` | COEP 头没加 |
-| 上传 zip 413 | `curl -sI https://maohedong.top:8443/api/sync/state` 看是否有 `client_max_body_size` | Nginx `client_max_body_size` 太小 |
+| sqlite-wasm 启动失败 | `curl -sI https://maohedong.top:8443/ \| grep cross-origin` | COEP 头没加（HTTP 8080 也要加） |
+| `/api/` 返回 index.html | 检查 Caddyfile `handle /api/*` 是否在兜底 `handle {}` 之前 | `try_files` 被编译到路由前了 |
+| 上传 zip 413 | `curl -sI https://maohedong.top:8443/api/sync/state` 看响应头 | Caddy `request_body.max_size` 太小 |
+| systemd Status=203/EXEC | `grep ExecStart /etc/systemd/system/medmemory-sync.service` | Node 路径错（nvm 装的 node www-data 不可访问） |
 | 锁长时间不释放 | `sudo cat /var/www/medmemory-sync/lock.json` | TTL 30 分钟，或客户端异常退出未 checkin |
 
 ---
 
 ## 10. 安全注意事项
 
-- `/var/www/medmemory-sync/` 目录权限 750，只 `www-data` 可读写。snapshot.zip 含全家人病史，**不能让 web 直接访问**（Nginx 的 `root` 指向 `/var/www/medmemory`，不是这里，所以默认安全）。
+- `/var/www/medmemory-sync/` 目录权限 750，只 `www-data` 可读写。snapshot.zip 含全家人病史，**不能让 web 直接访问**（Caddy 的 `root` 指向 `/var/www/medmemory`，不是这里，所以默认安全）。
 - Token 保存在 `/opt/medmemory-sync/.sync-token`（600 权限），不要入 git，不要在聊天里贴明文。
 - 服务器重启后 systemd 自动拉起 sync-server（步骤 4.3 的 `enable`）。
-- 8443 证书过期后 Nginx 会启动失败，注意续期。
+- 8443 证书由 Caddy 自动管理（ACME），通常不会过期。
+- Node 二进制 `/usr/local/bin/node` 是 755，所有用户可执行，但只能写 root——别 chmod 777。
