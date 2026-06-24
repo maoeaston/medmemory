@@ -386,10 +386,12 @@ const {
   syncState,
   syncError,
   serverVersion: syncServerVersion,
+  serverHasSnapshot: syncServerHasSnapshot,
   lockHolder: syncLockHolder,
   lastSyncAt: syncLastSyncAt,
   checkout: syncCheckout,
   checkin: syncCheckin,
+  seed: syncSeed,
   forceReleaseLock: syncForceReleaseLock,
   testConnection: syncTestConnection,
 } = useSync();
@@ -448,6 +450,13 @@ const canCheckin = computed(
     syncState.value === 'editing',
 );
 
+const canSeed = computed(
+  () =>
+    syncIsConfigured.value &&
+    !syncServerHasSnapshot.value &&
+    !isSyncOperating.value,
+);
+
 function handleSaveSyncUrl(): void {
   syncSaveServerUrl(syncUrlInput.value);
   syncUrlSavedFlash.value = true;
@@ -504,7 +513,19 @@ async function handleSyncCheckin(): Promise<void> {
   try {
     await syncCheckin();
   } catch {
-    syncOperateError.value = syncError.value?.message ?? '\u63A8\u9001\u5931\u8D25';
+    syncOperateError.value = syncError.value?.message ?? '\u63A8\u9001\u5934\u8D25';
+  } finally {
+    isSyncOperating.value = false;
+  }
+}
+
+async function handleSyncSeed(): Promise<void> {
+  isSyncOperating.value = true;
+  syncOperateError.value = null;
+  try {
+    await syncSeed();
+  } catch {
+    syncOperateError.value = syncError.value?.message ?? '首次推送失败';
   } finally {
     isSyncOperating.value = false;
   }
@@ -1014,22 +1035,35 @@ onMounted(() => {
 
       <!-- 操作按钮 -->
       <div class="action-row sync-actions">
+        <!-- 服务器无快照: 只能首次推送 (seed), checkout 会 404, checkin 无锁 -->
         <button
+          v-if="!syncServerHasSnapshot"
           type="button"
           class="btn btn-primary"
-          :disabled="!canCheckout || isSyncOperating"
-          @click="handleSyncCheckout"
+          :disabled="!canSeed"
+          @click="handleSyncSeed"
         >
-          {{ isSyncOperating ? '处理中...' : '立即拉取 (checkout)' }}
+          {{ isSyncOperating ? '处理中...' : '首次推送 (seed)' }}
         </button>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="!canCheckin || isSyncOperating"
-          @click="handleSyncCheckin"
-        >
-          {{ isSyncOperating ? '处理中...' : '立即推送 (checkin)' }}
-        </button>
+        <!-- 服务器有快照: 正常 checkout / checkin -->
+        <template v-else>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!canCheckout || isSyncOperating"
+            @click="handleSyncCheckout"
+          >
+            {{ isSyncOperating ? '处理中...' : '立即拉取 (checkout)' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!canCheckin || isSyncOperating"
+            @click="handleSyncCheckin"
+          >
+            {{ isSyncOperating ? '处理中...' : '立即推送 (checkin)' }}
+          </button>
+        </template>
         <button
           type="button"
           class="btn btn-danger"

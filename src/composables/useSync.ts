@@ -67,6 +67,7 @@ const lockHolder = ref<LockHolder | null>(null);
 const lastSyncAt = ref<Date | null>(loadLastSyncAt());
 const lockExpiresAt = ref<Date | null>(null);
 const heartbeatFailedCount = ref<number>(0);
+const serverHasSnapshot = ref<boolean>(false);
 
 // ============================================================
 // 模块级 timer / flag
@@ -439,6 +440,7 @@ async function pollState(): Promise<void> {
   const state = await fetchServerState();
 
   serverVersion.value = state.version;
+  serverHasSnapshot.value = state.hasSnapshot;
 
   if (state.lockedBy === null) {
     // 锁释放了
@@ -553,6 +555,7 @@ async function initOnAppStart(): Promise<void> {
 
   // 更新版本号
   serverVersion.value = state.version;
+  serverHasSnapshot.value = state.hasSnapshot;
 
   if (state.lockedBy === null) {
     // 无人持锁
@@ -872,6 +875,7 @@ async function seed(): Promise<void> {
 
     const body = await res.json();
     serverVersion.value = body.version as number;
+    serverHasSnapshot.value = true;
     lastSyncAt.value = new Date();
     persistLastSyncAt(lastSyncAt.value);
     syncState.value = 'idle';
@@ -909,6 +913,7 @@ export function useSync() {
     syncState: readonly(syncState),
     syncError: readonly(syncError),
     serverVersion: readonly(serverVersion),
+    serverHasSnapshot: readonly(serverHasSnapshot),
     lockHolder: readonly(lockHolder),
     lastSyncAt: readonly(lastSyncAt),
     lockExpiresAt: readonly(lockExpiresAt),
