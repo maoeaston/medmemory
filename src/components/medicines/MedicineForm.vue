@@ -87,7 +87,11 @@ watch(
 const isEdit = () => props.initialValues !== null && props.initialValues !== undefined;
 
 // 数量字段: 空串 → 0（与 DB NOT NULL DEFAULT 0 语义一致），非法输入 → 0 兜底
-function parseQuantity(raw: string): number {
+// 注意: type=number 输入经 v-model 会被 Vue 数值化为 number（而非 string），故兼容两种类型
+function parseQuantity(raw: string | number): number {
+  if (typeof raw === 'number') {
+    return isNaN(raw) ? 0 : raw;
+  }
   const trimmed = raw.trim();
   if (trimmed === '') return 0;
   const n = Number(trimmed);
