@@ -28,6 +28,7 @@
 import { ref } from 'vue';
 import { useRepositories } from '@/composables/useRepositories';
 import { useAiConfig } from '@/composables/useAiConfig';
+import { computeAge } from '@/lib/memberAvatar';
 import { OpenAiProvider } from '@/lib/ai/OpenAiProvider';
 import {
   LAB_INTERPRETATION_PROMPT,
@@ -42,29 +43,6 @@ import type {
   MedicationGuide,
 } from '@/lib/ai/AiProvider';
 import type { AiInterpretation } from '@/repositories';
-
-/**
- * 从生日字符串推算年龄（年）。
- * 生日格式 YYYY-MM-DD, 缺失或非法返回 undefined。
- */
-function ageFromBirthday(birthday: string | null): number | undefined {
-  if (!birthday) return undefined;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthday);
-  if (!match) return undefined;
-  const birthYear = Number(match[1]);
-  const birthMonth = Number(match[2]);
-  const birthDay = Number(match[3]);
-  const now = new Date();
-  let age = now.getFullYear() - birthYear;
-  // 月日还没到 → 减 1
-  if (
-    now.getMonth() + 1 < birthMonth ||
-    (now.getMonth() + 1 === birthMonth && now.getDate() < birthDay)
-  ) {
-    age -= 1;
-  }
-  return age >= 0 && age < 150 ? age : undefined;
-}
 
 /**
  * useHealthAgent — 每次 call 返回独立状态。
@@ -149,7 +127,7 @@ export function useHealthAgent() {
         if (event) {
           const member = await repos.familyMember.getById(event.member_id);
           if (member) {
-            memberAge = ageFromBirthday(member.birthday);
+            memberAge = computeAge(member.birthday);
             memberGender = member.gender ?? undefined;
           }
         }
@@ -247,7 +225,7 @@ export function useHealthAgent() {
 
         const member = await repos.familyMember.getById(medicine.member_id);
         if (member) {
-          memberAge = ageFromBirthday(member.birthday);
+          memberAge = computeAge(member.birthday);
           memberGender = member.gender ?? undefined;
         }
       }

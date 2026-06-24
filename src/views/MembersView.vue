@@ -18,6 +18,7 @@ import type {
 import ModalOverlay from '@/components/ui/ModalOverlay.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import MemberForm from '@/components/members/MemberForm.vue';
+import Avatar from '@/components/ui/Avatar.vue';
 
 const members = ref<FamilyMember[]>([]);
 const loadError = ref<string | null>(null);
@@ -185,6 +186,12 @@ onMounted(() => {
         :key="m.id"
         class="member-item"
       >
+        <Avatar
+          class="member-avatar"
+          :gender="m.gender"
+          :birthday="m.birthday"
+          :size="40"
+        />
         <div class="member-info">
           <div class="member-name-row">
             <span class="member-name">{{ m.name }}</span>
@@ -304,6 +311,13 @@ onMounted(() => {
   gap: 1rem;
   align-items: flex-start;
   justify-content: space-between;
+}
+
+.member-avatar {
+  flex-shrink: 0;
+  /* 与首行 (member-name-row) 视觉对齐: 略向下偏移 */
+  margin-top: 0.1rem;
+  border-radius: 50%;
 }
 
 .member-info {

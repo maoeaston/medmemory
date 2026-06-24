@@ -23,6 +23,7 @@
 import { ref } from 'vue';
 import { useRepositories } from '@/composables/useRepositories';
 import { useAiConfig } from '@/composables/useAiConfig';
+import { computeAge } from '@/lib/memberAvatar';
 import { IndexedDbStorageAdapter } from '@/storage/IndexedDbStorageAdapter';
 import { OpenAiProvider } from '@/lib/ai/OpenAiProvider';
 import { MEDICAL_DOCUMENT_PROMPT, PROMPT_VERSION, HEALTH_PROBLEM_TEXT_SUGGESTION_PROMPT, TEXT_SUGGESTION_PROMPT_VERSION } from '@/lib/ai/prompts';
@@ -203,7 +204,7 @@ export function useAiProcess() {
         title: event.title,
         summary: event.summary,
         event_type: event.event_type,
-        memberAge: computeAgeFromBirthday(member?.birthday ?? null),
+        memberAge: computeAge(member?.birthday ?? null),
         memberGender: member?.gender ?? undefined,
         prompt: HEALTH_PROBLEM_TEXT_SUGGESTION_PROMPT,
       });
@@ -443,26 +444,6 @@ export function useAiProcess() {
     processBatch,
     isApiKeyError,
   };
-}
-
-/**
- * 从 YYYY-MM-DD 算年龄（int）。非法/未来/超 150 岁 → undefined。
- */
-function computeAgeFromBirthday(birthday: string | null): number | undefined {
-  if (!birthday) return undefined;
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthday);
-  if (!match) return undefined;
-  const birthYear = parseInt(match[1], 10);
-  const birthMonth = parseInt(match[2], 10);
-  const birthDay = parseInt(match[3], 10);
-  const now = new Date();
-  let age = now.getUTCFullYear() - birthYear;
-  const currentMonth = now.getUTCMonth() + 1;
-  const currentDay = now.getUTCDate();
-  if (currentMonth < birthMonth || (currentMonth === birthMonth && currentDay < birthDay)) {
-    age--;
-  }
-  return age >= 0 && age < 150 ? age : undefined;
 }
 
 /**

@@ -17,6 +17,7 @@ import { onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useRepositories } from '@/composables/useRepositories';
 import type { Attachment, FamilyMember, MedicalEvent } from '@/repositories';
+import Avatar from '@/components/ui/Avatar.vue';
 
 const props = defineProps<{
   member: FamilyMember;
@@ -132,7 +133,12 @@ onMounted(() => {
 <template>
   <article class="member-card">
     <header class="card-header">
-      <span class="avatar">👤</span>
+      <Avatar
+        class="avatar"
+        :gender="props.member.gender"
+        :birthday="props.member.birthday"
+        :size="48"
+      />
       <div class="header-info">
         <h2 class="member-name">
           {{ props.member.name }}
