@@ -11,6 +11,7 @@
 // 导入/重置成功后 location.reload(): 最稳的清理方式, 绕过组件 ref 残留。
 // 导出不 reload（没改数据）。
 import { computed, onMounted, ref, watch } from 'vue';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import {
   exportAllData,
   importAllData,
@@ -605,7 +606,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="settings-view">
+  <PageContainer max-width="standard" class="settings-view">
     <header class="page-header">
       <h1 class="page-title">设置</h1>
     </header>
@@ -1215,15 +1216,11 @@ onMounted(() => {
         </button>
       </template>
     </ModalOverlay>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.settings-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .settings-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   margin-bottom: 1.25rem;

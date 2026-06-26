@@ -15,3 +15,12 @@
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
+
+# PWA manifest (必须 Content-Type: application/manifest+json, 否则 Chrome 报错)
+/manifest.json
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=3600
+
+# PWA 图标 (永久缓存, 文件名带尺寸, 变更时改名)
+/icons/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -10,6 +10,7 @@
 // 复用: MedicinesView 的 CRUD modal 模式; TrendsView 的宽页面布局。
 // 成员筛选: 仅显示可作为生长追踪对象的成员 (有生日、有性别、0-19y)。
 import { computed, onMounted, ref, watch } from 'vue';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
   FamilyMember,
@@ -221,7 +222,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="growth-view">
+  <PageContainer max-width="wide" class="growth-view">
     <header class="page-header">
       <h1 class="page-title">生长曲线</h1>
       <button
@@ -352,15 +353,11 @@ onMounted(() => {
       @confirm="handleDeleteConfirm"
       @cancel="closeDeleteModal"
     />
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.growth-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-wide, 920px);
-  margin: 0 auto;
-}
+/* .growth-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   display: flex;

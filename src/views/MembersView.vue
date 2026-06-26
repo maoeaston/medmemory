@@ -9,6 +9,7 @@
 // CASCADE 警告: 删成员会级联删 medical_events / health_problems / event_problem_rel
 // attachments.event_id 是 SET NULL（不删附件 metadata）— ConfirmDialog 文案说明
 import { onMounted, ref } from 'vue';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
   FamilyMember,
@@ -158,7 +159,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="members-view">
+  <PageContainer max-width="standard" class="members-view">
     <header class="page-header">
       <h1 class="page-title">家庭成员</h1>
       <button
@@ -257,15 +258,11 @@ onMounted(() => {
       @confirm="handleDeleteConfirm"
       @cancel="closeDeleteModal"
     />
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.members-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .members-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   display: flex;

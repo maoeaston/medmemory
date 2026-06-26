@@ -8,76 +8,96 @@
 //
 // 历史模式: history（非 hash）, 美观 + PWA 友好
 // dev 模式 vite 自动 fallback 到 index.html
+//
+// meta.depth (Phase 4): 用于 useRouteDirection 判断 slide-forward / slide-back / fade
+//   0 = 主导航 (底部 tab 5 个)
+//   1 = 二级页面 (抽屉 + 桌面顶 nav 的功能页)
+//   2 = 详情页 (event detail)
 // ============================================================
 
 import { createRouter, createWebHistory } from 'vue-router';
+import type { RouteRecordRaw } from 'vue-router';
+
+const routes: RouteRecordRaw[] = [
+  { path: '/', redirect: '/dashboard' },
+  {
+    path: '/dashboard',
+    name: 'dashboard',
+    component: () => import('@/views/DashboardView.vue'),
+    meta: { depth: 0 },
+  },
+  {
+    path: '/capture',
+    name: 'capture',
+    component: () => import('@/views/CaptureView.vue'),
+    meta: { depth: 0 },
+  },
+  {
+    path: '/inbox',
+    name: 'inbox',
+    component: () => import('@/views/InboxView.vue'),
+    meta: { depth: 0 },
+  },
+  {
+    path: '/medicines',
+    name: 'medicines',
+    component: () => import('@/views/MedicinesView.vue'),
+    meta: { depth: 0 },
+  },
+  {
+    path: '/members',
+    name: 'members',
+    component: () => import('@/views/MembersView.vue'),
+    meta: { depth: 1 },
+  },
+  {
+    path: '/events',
+    name: 'events',
+    component: () => import('@/views/EventsView.vue'),
+    meta: { depth: 1 },
+  },
+  {
+    path: '/events/:id',
+    name: 'event-detail',
+    component: () => import('@/views/EventDetailView.vue'),
+    props: (route) => ({ id: Number(route.params.id) }),
+    meta: { depth: 2 },
+  },
+  {
+    path: '/timeline',
+    name: 'timeline',
+    component: () => import('@/views/TimelineView.vue'),
+    meta: { depth: 1 },
+  },
+  {
+    path: '/trends',
+    name: 'trends',
+    component: () => import('@/views/TrendsView.vue'),
+    meta: { depth: 1 },
+  },
+  {
+    path: '/search',
+    name: 'search',
+    component: () => import('@/views/SearchView.vue'),
+    meta: { depth: 1 },
+  },
+  {
+    path: '/growth',
+    name: 'growth',
+    component: () => import('@/views/GrowthView.vue'),
+    meta: { depth: 1 },
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: () => import('@/views/SettingsView.vue'),
+    meta: { depth: 1 },
+  },
+];
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    { path: '/', redirect: '/dashboard' },
-    {
-      path: '/dashboard',
-      name: 'dashboard',
-      component: () => import('@/views/DashboardView.vue'),
-    },
-    {
-      path: '/capture',
-      name: 'capture',
-      component: () => import('@/views/CaptureView.vue'),
-    },
-    {
-      path: '/inbox',
-      name: 'inbox',
-      component: () => import('@/views/InboxView.vue'),
-    },
-    {
-      path: '/members',
-      name: 'members',
-      component: () => import('@/views/MembersView.vue'),
-    },
-    {
-      path: '/events',
-      name: 'events',
-      component: () => import('@/views/EventsView.vue'),
-    },
-    {
-      path: '/events/:id',
-      name: 'event-detail',
-      component: () => import('@/views/EventDetailView.vue'),
-      props: (route) => ({ id: Number(route.params.id) }),
-    },
-    {
-      path: '/timeline',
-      name: 'timeline',
-      component: () => import('@/views/TimelineView.vue'),
-    },
-    {
-      path: '/trends',
-      name: 'trends',
-      component: () => import('@/views/TrendsView.vue'),
-    },
-    {
-      path: '/search',
-      name: 'search',
-      component: () => import('@/views/SearchView.vue'),
-    },
-    {
-      path: '/medicines',
-      name: 'medicines',
-      component: () => import('@/views/MedicinesView.vue'),
-    },
-    {
-      path: '/growth',
-      name: 'growth',
-      component: () => import('@/views/GrowthView.vue'),
-    },
-    {
-      path: '/settings',
-      name: 'settings',
-      component: () => import('@/views/SettingsView.vue'),
-    },
-  ],
+  routes,
 });
 
 export default router;

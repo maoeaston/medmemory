@@ -1,0 +1,79 @@
+/* ============================================================
+   Route transitions — slide (mobile) / fade (desktop)
+   ============================================================
+   使用: AppShell.vue 的 <Transition :name="transitionName">
+   名称来自 useRouteDirection: forward → slide-forward, back → slide-back, none → fade
+
+   动画原理:
+     - slide-forward: 新页从右进 (translateX 100%), 旧页向左让 (-30%) + 淡出
+     - slide-back:    新页从左进 (-30%) + 淡入, 旧页向右出 (translateX 100%)
+     - fade:          同 depth 走纯淡入淡出
+     - 桌面 ≥1024px:  slide 退化为 fade (无水平位移)
+
+   position: absolute 让新旧页短暂共存 (避免 mode="out-in" 的空白 gap)
+   父容器 .app-main 需 position: relative (AppShell.vue 已加)
+   ============================================================ */
+
+/* === fade (同 depth 或桌面) === */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--duration-normal) var(--ease-decel);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* === slide-forward (新页从右进) === */
+.slide-forward-enter-active,
+.slide-forward-leave-active {
+  transition:
+    transform var(--duration-normal) var(--ease-decel),
+    opacity var(--duration-normal) var(--ease-decel);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.slide-forward-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+.slide-forward-leave-to {
+  transform: translateX(-30%);
+  opacity: 0;
+}
+
+/* === slide-back (新页从左进) === */
+.slide-back-enter-active,
+.slide-back-leave-active {
+  transition:
+    transform var(--duration-normal) var(--ease-decel),
+    opacity var(--duration-normal) var(--ease-decel);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.slide-back-enter-from {
+  transform: translateX(-30%);
+  opacity: 0;
+}
+.slide-back-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* === 桌面 ≥1024px: 退化为 fade, 无水平位移 === */
+@media (min-width: 1024px) {
+  .slide-forward-enter-from,
+  .slide-forward-leave-to,
+  .slide-back-enter-from,
+  .slide-back-leave-to {
+    transform: none;
+  }
+}

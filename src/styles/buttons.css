@@ -25,6 +25,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
+  min-height: var(--touch-target-min); /* iOS HIG / Material 推荐 44px 触摸目标 */
 }
 
 .btn-small {

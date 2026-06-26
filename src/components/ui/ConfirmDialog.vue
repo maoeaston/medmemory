@@ -18,6 +18,8 @@ const props = withDefaults(
     danger?: boolean;
     loading?: boolean;
     errorMessage?: string | null;
+    /** 透传给 ModalOverlay; 不传则自动 (移动=bottom-sheet, 桌面=centered) */
+    variant?: 'centered' | 'bottom-sheet' | 'fullscreen';
   }>(),
   {
     title: '请确认',
@@ -26,6 +28,7 @@ const props = withDefaults(
     danger: false,
     loading: false,
     errorMessage: null,
+    variant: undefined,
   },
 );
 
@@ -39,6 +42,7 @@ const emit = defineEmits<{
   <ModalOverlay
     :title="props.title"
     width="sm"
+    :variant="props.variant"
     @close="emit('cancel')"
   >
     <p class="confirm-message">{{ props.message }}</p>

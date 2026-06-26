@@ -13,6 +13,7 @@
 // 过期判定: 本地 THIS_MONTH 常量比对, 与 Dashboard MedicineWarningPanel 对齐
 //   不调 listExpiring(30) —— listAll 已含全部, 前端计算省一次 DB 查询
 import { computed, onMounted, reactive, ref } from 'vue';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
   FamilyMember,
@@ -287,7 +288,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="medicines-view">
+  <PageContainer max-width="standard" class="medicines-view">
     <header class="page-header">
       <h1 class="page-title">药箱</h1>
       <button
@@ -443,15 +444,11 @@ onMounted(() => {
       :medicine-id="currentMedicineId"
       @close="closeMedGuideModal"
     />
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.medicines-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .medicines-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   display: flex;

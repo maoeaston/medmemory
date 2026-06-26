@@ -11,6 +11,7 @@ import { ref } from 'vue';
 import PhotoCapture from '@/components/capture/PhotoCapture.vue';
 import TextCapture from '@/components/capture/TextCapture.vue';
 import VoiceCapture from '@/components/capture/VoiceCapture.vue';
+import PageContainer from '@/components/layout/PageContainer.vue';
 
 type CaptureTab = 'photo' | 'voice' | 'text';
 const activeTab = ref<CaptureTab>('text');
@@ -22,7 +23,7 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
 </script>
 
 <template>
-  <main class="capture">
+  <PageContainer max-width="narrow" class="capture">
     <h1 class="title">快速记录</h1>
     <p class="hint">不要求填完整, 先抓拍下来。后续在"待整理"里归档成正式医疗事件。</p>
 
@@ -50,15 +51,11 @@ const tabs: { id: CaptureTab; label: string; icon: string; available: boolean }[
         <TextCapture v-else-if="activeTab === 'text'" />
       </KeepAlive>
     </div>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.capture {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-narrow);
-  margin: 0 auto;
-}
+/* .capture padding/max-width/margin 由 PageContainer 提供 */
 
 .title {
   margin: 0 0 0.25rem;

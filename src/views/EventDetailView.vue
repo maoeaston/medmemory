@@ -17,6 +17,7 @@
 //   - attachments.event_id SET NULL（附件 metadata + 原件保留, 变孤儿）
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import { useAiProcess } from '@/composables/useAiProcess';
 import { useAiConfig } from '@/composables/useAiConfig';
@@ -454,7 +455,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="event-detail">
+  <PageContainer max-width="standard" class="event-detail">
     <header class="detail-header">
       <button
         type="button"
@@ -702,15 +703,11 @@ onMounted(() => {
       :event-summary="event?.summary ?? null"
       @close="closeLabInterpretationModal"
     />
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.event-detail {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .event-detail padding/max-width/margin 由 PageContainer 提供 */
 
 .detail-header {
   display: flex;

@@ -379,38 +379,8 @@ textarea.form-input {
   border-top: 1px solid #e5e7eb;
 }
 
-.btn {
-  padding: 0.55rem 1.2rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.92rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* .btn / .btn-primary / .btn-secondary / .btn:disabled 已统一在 src/styles/buttons.css
+ * 删除原 scoped 重复定义, 全局 .btn 自带 min-height: 44px (触摸目标达标) */
 
 @media (max-width: 540px) {
   .form-row-multiple {

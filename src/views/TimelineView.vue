@@ -12,6 +12,7 @@
 //   - TimelineView: listAll() 按 event_date DESC（"按发生时间回溯"）, 月分组
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import EventTypeBadge from '@/components/ui/EventTypeBadge.vue';
 import type { FamilyMember, MedicalEvent } from '@/repositories';
@@ -142,7 +143,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="timeline-view">
+  <PageContainer max-width="standard" class="timeline-view">
     <header class="page-header">
       <h1 class="page-title">时间线</h1>
       <span class="count-badge">{{ filteredEvents.length }}</span>
@@ -230,15 +231,11 @@ onMounted(() => {
         </ul>
       </section>
     </template>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.timeline-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .timeline-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   display: flex;

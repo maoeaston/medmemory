@@ -66,6 +66,7 @@ onMounted(() => {
   <ModalOverlay
     title="AI 用药指南"
     width="lg"
+    variant="fullscreen"
     @close="emit('close')"
   >
     <div class="med-guide">
@@ -390,30 +391,8 @@ onMounted(() => {
   font-style: italic;
 }
 
-.btn {
-  padding: 0.4rem 0.85rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: #e5e7eb;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* .btn / .btn-secondary / .btn:disabled 已统一在 src/styles/buttons.css
+ * 删除原 scoped 重复定义, 全局 .btn 自带 min-height: 44px (触摸目标达标) */
 
 /* === footer disclaimer === */
 .disclaimer-footer {

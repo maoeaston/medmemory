@@ -9,6 +9,7 @@
 // 这样从 /capture 录入后回 Dashboard, 待整理徽章自动 +1
 import { onMounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
   FamilyMember,
@@ -108,7 +109,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="dashboard">
+  <PageContainer max-width="wide" class="dashboard">
     <DashboardHeader :pending-count="pendingCount" />
 
     <AlertBanner
@@ -186,14 +187,12 @@ onMounted(() => {
       </span>
       <span class="trends-arrow">→</span>
     </RouterLink>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
 .dashboard {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-wide);
-  margin: 0 auto;
+  /* padding/max-width/margin 由 PageContainer 提供 */
   display: flex;
   flex-direction: column;
   gap: 1rem;

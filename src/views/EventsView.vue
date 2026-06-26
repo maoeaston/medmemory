@@ -10,6 +10,7 @@
 //   时间线视图 (/timeline) 走 event_date DESC, 职责分开
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import EventTypeBadge from '@/components/ui/EventTypeBadge.vue';
 import type { FamilyMember, MedicalEvent } from '@/repositories';
@@ -79,7 +80,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="events-view">
+  <PageContainer max-width="standard" class="events-view">
     <header class="page-header">
       <h1 class="page-title">医疗事件</h1>
       <span class="count-badge">{{ events.length }}</span>
@@ -133,15 +134,11 @@ onMounted(() => {
         </button>
       </li>
     </ul>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.events-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .events-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   display: flex;

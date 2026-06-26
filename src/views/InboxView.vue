@@ -10,6 +10,7 @@
 //   → 成功: 关闭 modal + 刷新列表
 //   → 部分失败: 保留 modal 打开, 显示失败详情, 用户可重试或取消
 import { computed, onMounted, ref } from 'vue';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import { archiveInboxItems } from '@/composables/useInboxArchive';
 import { useInboxCount } from '@/composables/useInboxCount';
@@ -179,7 +180,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="inbox-view">
+  <PageContainer max-width="standard" class="inbox-view">
     <header class="page-header">
       <div class="header-info">
         <h1 class="page-title">待整理</h1>
@@ -266,15 +267,11 @@ onMounted(() => {
         </p>
       </div>
     </ModalOverlay>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.inbox-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .inbox-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   display: flex;

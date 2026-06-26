@@ -20,6 +20,7 @@
 //   - 语义搜索（RAG）
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
   FamilyMember,
@@ -142,7 +143,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="search-view">
+  <PageContainer max-width="standard" class="search-view">
     <header class="page-header">
       <h1 class="page-title">搜索</h1>
     </header>
@@ -239,15 +240,11 @@ onMounted(async () => {
         </li>
       </ul>
     </template>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
-.search-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-width);
-  margin: 0 auto;
-}
+/* .search-view padding/max-width/margin 由 PageContainer 提供 */
 
 .page-header {
   margin-bottom: 0.75rem;

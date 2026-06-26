@@ -13,6 +13,7 @@
 //   - 同一天多个数据点按 created_at ASC 排（已在 repo 内保证）
 import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
+import PageContainer from '@/components/layout/PageContainer.vue';
 import { useRepositories } from '@/composables/useRepositories';
 import { parseNumericResult, parseReferenceRange, getThresholdsByName } from '@/lib/medical/criticalValue';
 import TrendChart from '@/components/trends/TrendChart.vue';
@@ -126,7 +127,7 @@ watch([selectedNameEn, selectedMemberId], () => {
 </script>
 
 <template>
-  <main class="trends-view">
+  <PageContainer max-width="wide" class="trends-view">
     <header class="page-header">
       <h1 class="page-title">📈 健康趋势</h1>
       <RouterLink to="/dashboard" class="back-link">← 返回 Dashboard</RouterLink>
@@ -242,14 +243,12 @@ watch([selectedNameEn, selectedMemberId], () => {
         </div>
       </section>
     </template>
-  </main>
+  </PageContainer>
 </template>
 
 <style scoped>
 .trends-view {
-  padding: 1.5rem;
-  max-width: var(--space-page-max-wide);
-  margin: 0 auto;
+  /* padding/max-width/margin 由 PageContainer 提供 */
   display: flex;
   flex-direction: column;
   gap: 1rem;
