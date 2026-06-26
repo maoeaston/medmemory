@@ -18,7 +18,7 @@
 //   - 时间范围 filter
 //   - 分页（SearchRepository 硬上限 LIMIT 50）
 //   - 语义搜索（RAG）
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
@@ -107,6 +107,22 @@ async function loadRecent(): Promise<void> {
 function openEvent(eventId: number | null): void {
   if (eventId === null) return;
   void router.push(`/events/${eventId}`);
+}
+
+// snippet 展开/收起状态: 按 attachment.id 索引, 用 Set 记录已展开项
+const expandedSnippets = reactive(new Set<number>());
+
+/** 启发式判断 snippet 是否长到需要 clamp（避免短文本也显示"展开"按钮） */
+function snippetNeedsClamp(text: string): boolean {
+  return text.length > 120;
+}
+
+function toggleSnippet(attachmentId: number): void {
+  if (expandedSnippets.has(attachmentId)) {
+    expandedSnippets.delete(attachmentId);
+  } else {
+    expandedSnippets.add(attachmentId);
+  }
 }
 
 function formatMember(name: string | null, nickname: string | null): string {
@@ -206,7 +222,19 @@ onMounted(async () => {
                 · {{ r.event.hospital }}
               </span>
             </div>
-            <p class="result-snippet">{{ r.snippet }}</p>
+            <p
+              class="result-snippet"
+              :class="{ 'is-expanded': expandedSnippets.has(r.attachment.id) }"
+            >{{ r.snippet }}</p>
+            <span
+              v-if="snippetNeedsClamp(r.snippet)"
+              class="expand-toggle"
+              role="button"
+              tabindex="0"
+              @click.stop="toggleSnippet(r.attachment.id)"
+              @keyup.enter="toggleSnippet(r.attachment.id)"
+              @keyup.space.prevent="toggleSnippet(r.attachment.id)"
+            >{{ expandedSnippets.has(r.attachment.id) ? '收起' : '展开' }}</span>
           </button>
         </li>
       </ul>
@@ -369,10 +397,31 @@ onMounted(async () => {
   padding: 0.4rem 0.5rem;
   border-radius: 3px;
   border-left: 2px solid var(--color-border-input);
-  max-height: 5rem;
-  overflow-y: auto;
+  /* 3 行截断 —— 替代原 max-height + overflow-y: auto 的"卡片内滚动"差体验 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.result-snippet.is-expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.expand-toggle {
+  display: inline-block;
+  margin: 0.3rem 0 0 0.5rem;
+  font-size: var(--font-size-btn-small);
+  color: var(--color-primary);
+  cursor: pointer;
+  user-select: none;
+}
+.expand-toggle:hover,
+.expand-toggle:focus {
+  text-decoration: underline;
 }
 
 .msg {

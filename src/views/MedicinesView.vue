@@ -12,7 +12,7 @@
 //
 // 过期判定: 本地 THIS_MONTH 常量比对, 与 Dashboard MedicineWarningPanel 对齐
 //   不调 listExpiring(30) —— listAll 已含全部, 前端计算省一次 DB 查询
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRepositories } from '@/composables/useRepositories';
 import type {
   FamilyMember,
@@ -54,6 +54,22 @@ const saveError = ref<string | null>(null);
 const deletingMedicine = ref<Medicine | null>(null);
 const isDeleting = ref(false);
 const deleteError = ref<string | null>(null);
+
+// === 备注 clamp 状态: 按 medicine.id 记录已展开项 ===
+const expandedRemarks = reactive(new Set<number>());
+
+/** 启发式: 备注 > 120 字才显示"展开/收起" */
+function remarkNeedsClamp(text: string): boolean {
+  return text.length > 120;
+}
+
+function toggleRemark(id: number): void {
+  if (expandedRemarks.has(id)) {
+    expandedRemarks.delete(id);
+  } else {
+    expandedRemarks.add(id);
+  }
+}
 
 // === v3.2 用药指南 modal 状态 ===
 const showMedGuideModal = ref(false);
@@ -348,7 +364,18 @@ onMounted(() => {
             </span>
             <span class="med-member">{{ memberName(m) }}</span>
           </div>
-          <p v-if="m.remark" class="med-remark">{{ m.remark }}</p>
+          <div v-if="m.remark" class="remark-wrap">
+            <p
+              class="med-remark"
+              :class="{ 'is-expanded': expandedRemarks.has(m.id) }"
+            >{{ m.remark }}</p>
+            <button
+              v-if="remarkNeedsClamp(m.remark)"
+              type="button"
+              class="btn btn-ghost btn-small expand-toggle"
+              @click="toggleRemark(m.id)"
+            >{{ expandedRemarks.has(m.id) ? '收起' : '展开' }}</button>
+          </div>
         </div>
         <div class="med-actions">
           <button
@@ -610,6 +637,30 @@ onMounted(() => {
   margin: 0;
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
+  line-height: 1.4;
+  /* 3 行截断, 长备注不再撑爆卡片 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.med-remark.is-expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.remark-wrap {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.expand-toggle {
+  margin-top: 0.2rem;
+  padding: 0.2rem 0.4rem;
+  font-size: var(--font-size-btn-small);
 }
 
 .med-actions {

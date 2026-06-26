@@ -12,6 +12,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRepositories } from '@/composables/useRepositories';
 import { archiveInboxItems } from '@/composables/useInboxArchive';
+import { useInboxCount } from '@/composables/useInboxCount';
 import type {
   FamilyMember,
   InboxItem,
@@ -26,6 +27,9 @@ const items = ref<InboxItem[]>([]);
 const members = ref<FamilyMember[]>([]);
 const loadError = ref<string | null>(null);
 const isLoading = ref(false);
+
+// 角标同步: 每次列表刷新（mount + archive 后）顺带更新 Navbar 待整理数字
+const { refresh: refreshInboxCount } = useInboxCount();
 
 // 选择状态: 用 Set<number> 存选中 id（避免 reactive 数组性能问题）
 const selectedIds = ref<Set<number>>(new Set());
@@ -80,6 +84,7 @@ async function loadInbox(): Promise<void> {
     }
     // member 加载失败不阻塞列表展示, 仅归档按钮禁用
     selectedIds.value = new Set(); // 重置选择
+    void refreshInboxCount(); // 同步 Navbar 角标
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);
   } finally {

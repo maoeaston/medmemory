@@ -217,7 +217,7 @@ onMounted(() => {
           </button>
           <button
             type="button"
-            class="btn btn-danger btn-small"
+            class="btn btn-danger-ghost btn-small"
             @click="openDeleteModal(m)"
           >
             删除

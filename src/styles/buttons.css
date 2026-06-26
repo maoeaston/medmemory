@@ -93,6 +93,19 @@
   background: var(--color-bg-muted);
 }
 
+/* 无框危险 — 列表行删除按钮。默认中性灰，hover 才显红
+ * 用于 Members 等列表场景：避免每行红框制造焦虑
+ * 真正的破坏性动作仍由 ConfirmDialog + .btn-danger-solid 兜底 */
+.btn-danger-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+}
+.btn-danger-ghost:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-danger);
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

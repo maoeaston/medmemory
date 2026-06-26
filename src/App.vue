@@ -9,11 +9,21 @@
 import { onMounted } from 'vue';
 import SyncIndicator from '@/components/SyncIndicator.vue';
 import { useSync } from '@/composables/useSync';
+import { useInboxCount } from '@/composables/useInboxCount';
+import router from '@/router';
 
 const { initOnAppStart } = useSync();
+const { count: pendingInboxCount, refresh: refreshInboxCount } = useInboxCount();
 
 onMounted(() => {
   void initOnAppStart();
+  void refreshInboxCount();
+});
+
+// 每次路由切换刷新角标: 兜底所有数据变更入口（capture / archive / sync 等）
+// countPending 是单条 SQL, 开销可忽略
+router.afterEach(() => {
+  void refreshInboxCount();
 });
 </script>
 
@@ -23,7 +33,10 @@ onMounted(() => {
       <RouterLink to="/dashboard" class="brand">家庭医疗记忆</RouterLink>
       <nav class="nav">
         <RouterLink to="/dashboard" class="nav-link">首页</RouterLink>
-        <RouterLink to="/inbox" class="nav-link">待整理</RouterLink>
+        <RouterLink to="/inbox" class="nav-link nav-inbox">
+          待整理
+          <span v-if="pendingInboxCount > 0" class="nav-badge">{{ pendingInboxCount }}</span>
+        </RouterLink>
         <RouterLink to="/capture" class="nav-link nav-cta">+ 记录</RouterLink>
         <RouterLink to="/members" class="nav-link">成员</RouterLink>
         <RouterLink to="/timeline" class="nav-link">时间线</RouterLink>
@@ -122,6 +135,22 @@ body {
 .nav-cta.router-link-active {
   background: var(--color-primary-dark);
   color: var(--color-text-on-primary) !important;
+}
+
+/* 待整理 tab 数字角标（amber 警示色, 提示有未处理 OCR 文档） */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  margin-left: 0.35rem;
+  background: var(--color-warning);
+  color: white;
+  border-radius: 9999px;
+  font-size: var(--font-size-btn-small);
+  font-weight: var(--font-weight-semibold);
 }
 
 .sync-indicator-slot {
