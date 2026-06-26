@@ -208,7 +208,6 @@ function handleCancel(): void {
         ref="fileInput"
         type="file"
         accept="image/*"
-        capture="environment"
         class="scan-file-input"
         @change="onPackagePhoto"
       />

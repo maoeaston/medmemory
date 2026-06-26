@@ -10,7 +10,7 @@
 //
 // 导入/重置成功后 location.reload(): 最稳的清理方式, 绕过组件 ref 残留。
 // 导出不 reload（没改数据）。
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
   exportAllData,
   importAllData,
@@ -239,6 +239,7 @@ const usingEnvFallback = computed(
 );
 
 function handleSaveApiKey(): void {
+  if (apiKeyInput.value === apiKey.value) return; // 无变化不打扰
   saveApiKey(apiKeyInput.value);
   apiKeySavedFlash.value = true;
   setTimeout(() => {
@@ -252,6 +253,7 @@ function handleClearApiKey(): void {
 }
 
 function handleSaveBaseUrl(): void {
+  if (baseUrlInput.value === baseUrl.value) return;
   saveBaseUrl(baseUrlInput.value);
   baseUrlSavedFlash.value = true;
   setTimeout(() => {
@@ -260,6 +262,7 @@ function handleSaveBaseUrl(): void {
 }
 
 function handleSaveModel(): void {
+  if (modelInput.value === model.value) return;
   saveModel(modelInput.value);
   modelSavedFlash.value = true;
   setTimeout(() => {
@@ -290,6 +293,8 @@ const haBaseUrlSavedFlash = ref(false);
 const haModelSavedFlash = ref(false);
 
 function haHandleSaveApiKey(): void {
+  if (syncHealthFromOcr.value) return; // 同步中: 禁止手动保存
+  if (haApiKeyInput.value === haApiKey.value) return;
   haSaveApiKey(haApiKeyInput.value);
   haApiKeySavedFlash.value = true;
   setTimeout(() => {
@@ -298,11 +303,14 @@ function haHandleSaveApiKey(): void {
 }
 
 function haHandleClearApiKey(): void {
+  if (syncHealthFromOcr.value) return; // 同步中: 不允许清除
   haApiKeyInput.value = '';
   haSaveApiKey('');
 }
 
 function haHandleSaveBaseUrl(): void {
+  if (syncHealthFromOcr.value) return;
+  if (haBaseUrlInput.value === haBaseUrl.value) return;
   haSaveBaseUrl(haBaseUrlInput.value);
   haBaseUrlSavedFlash.value = true;
   setTimeout(() => {
@@ -311,12 +319,60 @@ function haHandleSaveBaseUrl(): void {
 }
 
 function haHandleSaveModel(): void {
+  if (haModelInput.value === haModel.value) return;
   haSaveModel(haModelInput.value);
   haModelSavedFlash.value = true;
   setTimeout(() => {
     haModelSavedFlash.value = false;
   }, 2000);
 }
+
+// ============================================================
+// Sync from OCR — 勾选后 health-agent 的 apiKey/baseUrl 镜像 OCR
+// 解决两张卡重复输入 Endpoint/Key 的痛点
+// ============================================================
+const SYNC_FLAG_KEY = 'medmemory:ai:health-agent:sync-from-ocr';
+const syncHealthFromOcr = ref<boolean>(
+  (() => {
+    try {
+      return localStorage.getItem(SYNC_FLAG_KEY) === '1';
+    } catch {
+      return false;
+    }
+  })(),
+);
+
+function persistSyncFlag(): void {
+  try {
+    if (syncHealthFromOcr.value) {
+      localStorage.setItem(SYNC_FLAG_KEY, '1');
+    } else {
+      localStorage.removeItem(SYNC_FLAG_KEY);
+    }
+  } catch {
+    // localStorage 不可用: 仅内存
+  }
+}
+
+/**
+ * 镜像逻辑:
+ *   - sync ON: 立即把 OCR 当前值写入 HA, 后续 OCR 变化也实时同步
+ *   - sync OFF: 不再同步, HA 保留最后镜像值（用户可独立编辑）
+ * 通过单一 watch 实现: 监听 [flag, ocr.apiKey, ocr.baseUrl],
+ * flag 为 false 时 early return。
+ */
+watch(
+  [syncHealthFromOcr, () => apiKey.value, () => baseUrl.value],
+  ([syncOn, ocrKey, ocrUrl]) => {
+    persistSyncFlag();
+    if (!syncOn) return;
+    haSaveApiKey(ocrKey);
+    haSaveBaseUrl(ocrUrl);
+    haApiKeyInput.value = ocrKey;
+    haBaseUrlInput.value = ocrUrl;
+  },
+  { immediate: true },
+);
 
 // ============================================================
 // 批量处理附件
@@ -649,6 +705,8 @@ onMounted(() => {
             autocomplete="off"
             spellcheck="false"
             :disabled="isBatchProcessing"
+            @blur="handleSaveApiKey"
+            @keyup.enter="handleSaveApiKey"
           />
           <button
             type="button"
@@ -657,12 +715,6 @@ onMounted(() => {
           >{{ showApiKey ? '隐藏' : '显示' }}</button>
         </div>
         <div class="action-row">
-          <button
-            type="button"
-            class="btn btn-primary"
-            :disabled="isBatchProcessing"
-            @click="handleSaveApiKey"
-          >保存 API Key</button>
           <button
             v-if="hasKey"
             type="button"
@@ -673,7 +725,7 @@ onMounted(() => {
           <span v-if="apiKeySavedFlash" class="saved-flash">✓ 已保存</span>
         </div>
         <p v-if="usingEnvFallback" class="msg msg-info">
-          当前使用 .env 默认 key。保存后会覆盖为输入框中的值。
+          当前使用 .env 默认 key。修改后失焦自动保存。
         </p>
         <p v-else-if="hasKey" class="msg msg-success">
           ✓ 已配置 API Key（保存在 localStorage）。
@@ -694,14 +746,10 @@ onMounted(() => {
           autocomplete="off"
           spellcheck="false"
           :disabled="isBatchProcessing"
+          @blur="handleSaveBaseUrl"
+          @keyup.enter="handleSaveBaseUrl"
         />
         <div class="action-row">
-          <button
-            type="button"
-            class="btn btn-primary"
-            :disabled="isBatchProcessing"
-            @click="handleSaveBaseUrl"
-          >保存 Base URL</button>
           <span v-if="baseUrlSavedFlash" class="saved-flash">✓ 已保存</span>
         </div>
         <p class="msg msg-info">
@@ -721,14 +769,10 @@ onMounted(() => {
           autocomplete="off"
           spellcheck="false"
           :disabled="isBatchProcessing"
+          @blur="handleSaveModel"
+          @keyup.enter="handleSaveModel"
         />
         <div class="action-row">
-          <button
-            type="button"
-            class="btn btn-primary"
-            :disabled="isBatchProcessing"
-            @click="handleSaveModel"
-          >保存 Model</button>
           <span v-if="modelSavedFlash" class="saved-flash">✓ 已保存</span>
         </div>
         <p class="msg msg-info">
@@ -748,6 +792,18 @@ onMounted(() => {
         可切更便宜的文本模型）。配置独立存储, 互不影响。
       </p>
 
+      <!-- 同步 OCR 配置 checkbox -->
+      <label class="sync-row">
+        <input
+          type="checkbox"
+          v-model="syncHealthFromOcr"
+        />
+        <span>同步上方 OCR 配置（API Key / Base URL）</span>
+      </label>
+      <p v-if="syncHealthFromOcr" class="msg msg-info">
+        已同步: API Key + Base URL 实时镜像上方 OCR 卡, 只可独立调整 Model。
+      </p>
+
       <!-- API Key -->
       <div class="config-row">
         <label class="config-label">API Key</label>
@@ -759,31 +815,30 @@ onMounted(() => {
             placeholder="sk-..."
             autocomplete="off"
             spellcheck="false"
+            :readonly="syncHealthFromOcr"
+            @blur="haHandleSaveApiKey"
+            @keyup.enter="haHandleSaveApiKey"
           />
           <button
             type="button"
             class="btn btn-secondary"
+            :disabled="syncHealthFromOcr"
             @click="haShowApiKey = !haShowApiKey"
           >{{ haShowApiKey ? '隐藏' : '显示' }}</button>
         </div>
         <div class="action-row">
           <button
-            type="button"
-            class="btn btn-primary"
-            @click="haHandleSaveApiKey"
-          >保存 API Key</button>
-          <button
-            v-if="haHasKey"
+            v-if="haHasKey && !syncHealthFromOcr"
             type="button"
             class="btn btn-secondary"
             @click="haHandleClearApiKey"
           >清除</button>
           <span v-if="haApiKeySavedFlash" class="saved-flash">✓ 已保存</span>
         </div>
-        <p v-if="haHasKey" class="msg msg-success">
+        <p v-if="!syncHealthFromOcr && haHasKey" class="msg msg-success">
           ✓ 已配置健康助手 API Key。
         </p>
-        <p v-else class="msg msg-info">
+        <p v-else-if="!syncHealthFromOcr" class="msg msg-info">
           未配置。未配置时健康助手相关按钮（化验解读 / 用药指南）点击会提示。
         </p>
       </div>
@@ -798,16 +853,14 @@ onMounted(() => {
           placeholder="https://api.openai.com/v1 或 https://ccapi.us/v1"
           autocomplete="off"
           spellcheck="false"
+          :readonly="syncHealthFromOcr"
+          @blur="haHandleSaveBaseUrl"
+          @keyup.enter="haHandleSaveBaseUrl"
         />
         <div class="action-row">
-          <button
-            type="button"
-            class="btn btn-primary"
-            @click="haHandleSaveBaseUrl"
-          >保存 Base URL</button>
           <span v-if="haBaseUrlSavedFlash" class="saved-flash">✓ 已保存</span>
         </div>
-        <p class="msg msg-info">
+        <p v-if="!syncHealthFromOcr" class="msg msg-info">
           只填到 <code>/v1</code>。可与上方相同, 也可切换不同中转站。
         </p>
       </div>
@@ -822,13 +875,10 @@ onMounted(() => {
           placeholder="gpt-4o / gpt-5.5 / deepseek-chat / claude-3-5-sonnet 等"
           autocomplete="off"
           spellcheck="false"
+          @blur="haHandleSaveModel"
+          @keyup.enter="haHandleSaveModel"
         />
         <div class="action-row">
-          <button
-            type="button"
-            class="btn btn-primary"
-            @click="haHandleSaveModel"
-          >保存 Model</button>
           <span v-if="haModelSavedFlash" class="saved-flash">✓ 已保存</span>
         </div>
         <p class="msg msg-info">
@@ -1397,6 +1447,26 @@ onMounted(() => {
   font-size: var(--font-size-small);
   color: var(--color-success);
   font-weight: var(--font-weight-medium);
+}
+
+/* 同步 OCR 配置 checkbox 行 */
+.sync-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.9rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-badge, 6px);
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+.sync-row input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
 }
 
 .msg-info {
